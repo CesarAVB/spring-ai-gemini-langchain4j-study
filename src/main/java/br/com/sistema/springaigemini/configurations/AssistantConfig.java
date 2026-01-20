@@ -1,16 +1,15 @@
 package br.com.sistema.springaigemini.configurations;
 
-import dev.langchain4j.model.googleai.GoogleAiGeminiChatModel;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import lombok.extern.log4j.Log4j2;
 
-import br.com.sistema.springaigemini.services.AssistantPlanoService;
-import br.com.sistema.springaigemini.services.PlanoNutricionalCalculatorService;
-import br.com.sistema.springaigemini.mappers.PlanoNutricionalMapper;
-import br.com.sistema.springaigemini.mappers.MacronutrientesMapper;
 import br.com.sistema.springaigemini.mappers.CalculoPlanoMapper;
+import br.com.sistema.springaigemini.mappers.MacronutrientesMapper;
+import br.com.sistema.springaigemini.mappers.PlanoNutricionalMapper;
+import br.com.sistema.springaigemini.services.PlanoNutricionalCalculatorService;
+import dev.langchain4j.model.googleai.GoogleAiGeminiChatModel;
+import lombok.extern.log4j.Log4j2;
 
 /**
  * ==================== CONFIGURAÇÃO CENTRAL DO PROJETO ====================
