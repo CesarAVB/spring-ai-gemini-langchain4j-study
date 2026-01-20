@@ -11,6 +11,12 @@ import io.swagger.v3.oas.models.info.Info;
 import io.swagger.v3.oas.models.info.License;
 import io.swagger.v3.oas.models.servers.Server;
 
+/**
+ * Configuração do Swagger/OpenAPI
+ * 
+ * Acesse em: http://localhost:8080/swagger-ui.html
+ * JSON: http://localhost:8080/v3/api-docs
+ */
 @Configuration
 public class OpenApiConfig {
 
@@ -18,10 +24,26 @@ public class OpenApiConfig {
     public OpenAPI customOpenAPI() {
         return new OpenAPI()
                 .info(new Info()
-                        .title("Spring AI Gemini LangChain4j Study API") // Título atualizado
+                        .title("Spring AI Gemini - Assistentes IA")
                         .version("1.0.0")
-                        .description("API de estudo e exploração da integração de IA com Google Gemini e LangChain4j em Spring Boot. " +
-                                     "Demonstra funcionalidades de LLMs, como chatbots, processamento de linguagem natural e geração de conteúdo.") // Descrição atualizada
+                        .description("""
+                        		API REST para gerenciar Assistentes de IA integrados com Google Gemini,
+                                Gmail e GitHub.
+                                
+                                **Recursos Disponíveis:**
+                                - 📧 **Gmail Assistant**: Gerenciar emails (listar, enviar, deletar, buscar)
+                                - 📚 **GitHub Assistant**: Gerenciar repositórios (listar, criar/editar arquivos, issues)
+                                - 📋 **Plano Nutricional**: Cálculos e recomendações personalizadas
+                                
+                                **Tecnologias:**
+                                - Spring Boot 3.2.5
+                                - Java 21
+                                - LangChain4j
+                                - Google Gemini AI
+                                - Gmail API
+                                - GitHub API
+                                - MapperStruct
+                        		""")
                         .contact(new Contact()
                                 .name("César Augusto")
                                 .email("cesar.augusto.rj1@gmail.com")

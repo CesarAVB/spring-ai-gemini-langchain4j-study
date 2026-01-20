@@ -18,10 +18,6 @@ import com.google.api.client.util.store.FileDataStoreFactory;
 import com.google.api.services.gmail.Gmail;
 import com.google.api.services.gmail.GmailScopes;
 
-import br.com.sistema.springaigemini.mappers.CalculoPlanoMapper;
-import br.com.sistema.springaigemini.mappers.MacronutrientesMapper;
-import br.com.sistema.springaigemini.mappers.PlanoNutricionalMapper;
-import br.com.sistema.springaigemini.services.PlanoNutricionalCalculatorService;
 import dev.langchain4j.model.googleai.GoogleAiGeminiChatModel;
 import lombok.extern.log4j.Log4j2;
 
@@ -32,11 +28,19 @@ import lombok.extern.log4j.Log4j2;
  * 
  * Beans registrados:
  * 1. GoogleAiGeminiChatModel - Modelo de IA Gemini
- * 2. PlanoNutricionalCalculatorService - Serviço de cálculo nutricional
- * 3. Mappers - Conversão de DTOs
- * 4. Gmail API Service - Gerenciamento de emails Gmail
- * 5. RestTemplate - Cliente HTTP
- * 6. ObjectMapper - Serialização JSON
+ * 2. Gmail API Service - Gerenciamento de emails Gmail
+ * 3. RestTemplate - Cliente HTTP
+ * 4. ObjectMapper - Serialização JSON
+ * 
+ * MAPPERS (registrados como beans via @Component ou @Mapper):
+ * ===========================================================
+ * Os mappers são registrados automaticamente pelo MapperStruct:
+ * - CreatePlanoRequestMapper (request/plano/)
+ * - PlanoResponseMapper (response/plano/)
+ * - EmailResponseMapper (response/email/)
+ * - RepositorioResponseMapper (response/repositorio/)
+ * - RespostaAssistenteMapper (response/common/)
+ * - ChatMessageRequestMapper (request/common/)
  * 
  * TOOLS REGISTRADAS (via @Component):
  * =====================================
@@ -76,44 +80,7 @@ public class AssistantConfig {
         return model;
     }
     
-    // ==================== 2. MAPPERS (Conversão de DTOs) ====================
-    
-    @Bean
-    public PlanoNutricionalMapper planoNutricionalMapper() {
-        log.info("Criando PlanoNutricionalMapper");
-        return PlanoNutricionalMapper.INSTANCE;
-    }
-    
-    @Bean
-    public MacronutrientesMapper macronutrientesMapper() {
-        log.info("Criando MacronutrientesMapper");
-        return MacronutrientesMapper.INSTANCE;
-    }
-    
-    @Bean
-    public CalculoPlanoMapper calculoPlanoMapper() {
-        log.info("Criando CalculoPlanoMapper");
-        return CalculoPlanoMapper.INSTANCE;
-    }
-    
-    // ==================== 3. SERVIÇOS DE CÁLCULO ====================
-    
-    @Bean
-    public PlanoNutricionalCalculatorService planoNutricionalCalculatorService(
-            PlanoNutricionalMapper planoNutricionalMapper) {
-        
-        log.info("========================================");
-        log.info("Criando PlanoNutricionalCalculatorService");
-        log.info("========================================");
-        
-        PlanoNutricionalCalculatorService service = 
-                new PlanoNutricionalCalculatorService(planoNutricionalMapper);
-        
-        log.info("✅ PlanoNutricionalCalculatorService criado com sucesso");
-        return service;
-    }
-    
-    // ==================== 4. GMAIL API ====================
+    // ==================== 2. GMAIL API ====================
     
     /**
      * Cria e configura o cliente da Gmail API.
@@ -206,7 +173,7 @@ public class AssistantConfig {
         }
     }
     
-    // ==================== 5. REST TEMPLATE E OBJECT MAPPER ====================
+    // ==================== 3. REST TEMPLATE E OBJECT MAPPER ====================
     
     /**
      * Bean RestTemplate para requisições HTTP.
@@ -228,7 +195,52 @@ public class AssistantConfig {
         return new ObjectMapper();
     }
     
-    // ==================== 6. TOOLS (REGISTRADAS VIA @Component) ====================
+    // ==================== 4. MAPPERS ====================
+    
+    /**
+     * MAPPERS (Conversão de DTOs)
+     * 
+     * Os mappers são registrados automaticamente pelo MapperStruct quando usam:
+     * @Mapper(componentModel = "spring")
+     * 
+     * Mappers disponíveis:
+     * 
+     * REQUEST MAPPERS:
+     * ----------------
+     * - CreatePlanoRequestMapper (dtos/request/plano/)
+     *   Converte CreatePlanoRequest → PlanoNutricional
+     * 
+     * - ChatMessageRequestMapper (dtos/request/common/)
+     *   Valida ChatMessageRequest
+     * 
+     * RESPONSE MAPPERS:
+     * -----------------
+     * - PlanoResponseMapper (mappers/response/plano/)
+     *   Converte PlanoNutricional → PlanoResponse
+     * 
+     * - EmailResponseMapper (mappers/response/email/)
+     *   Converte Email → EmailResponse
+     * 
+     * - RepositorioResponseMapper (mappers/response/repositorio/)
+     *   Converte Repositorio → RepositorioResponse
+     * 
+     * - RespostaAssistenteMapper (mappers/response/common/)
+     *   Wrappa qualquer resposta em RespostaAssistente
+     * 
+     * Como injetar em um serviço:
+     * ============================
+     * @Service
+     * public class MinhaService {
+     *     @Autowired
+     *     private PlanoResponseMapper planoMapper;
+     *     
+     *     public PlanoResponse mapear(PlanoNutricional plano) {
+     *         return planoMapper.toPlanoResponse(plano);
+     *     }
+     * }
+     */
+    
+    // ==================== 5. TOOLS (REGISTRADAS VIA @Component) ====================
     
     /**
      * GithubAssistantTools
