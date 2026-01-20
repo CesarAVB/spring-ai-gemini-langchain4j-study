@@ -45,6 +45,12 @@
 			<optional>true</optional>
 		</dependency>
 		
+		<!-- SPRING BOOT STARTER MAIL - Suporte para envio de e-mails -->
+		<dependency>
+		    <groupId>org.springframework.boot</groupId>
+		    <artifactId>spring-boot-starter-mail</artifactId>
+		</dependency>
+		
 		<!-- LOMBOK - Biblioteca que reduz código boilerplate, gerando automaticamente getters, setters, construtores, equals, hashCode e toString em tempo de compilação -->
 		<dependency>
 			<groupId>org.projectlombok</groupId>
@@ -79,13 +85,63 @@
 		    <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
 		    <version>2.6.0</version>
 		</dependency>
-        
+		
+		<!-- GITHUB API - Biblioteca para interagir com a API do GitHub -->
+		<dependency>
+		    <groupId>org.kohsuke</groupId>
+		    <artifactId>github-api</artifactId>
+		    <version>1.319</version>
+		</dependency>
+				
+		<!-- GOOGLE API CLIENT - Cliente base para Google APIs -->
+	    <dependency>
+	        <groupId>com.google.api-client</groupId>
+	        <artifactId>google-api-client</artifactId>
+	        <version>1.35.2</version>
+	    </dependency>
+	
+	    <!-- GOOGLE API SERVICES - Gmail -->
+	    <dependency>
+	        <groupId>com.google.apis</groupId>
+		    <artifactId>google-api-services-gmail</artifactId>
+		    <version>v1-rev110-1.25.0</version>
+	    </dependency>
+	
+	    <!-- GOOGLE OAUTH CLIENT - Para autenticação OAuth2 -->
+	    <dependency>
+	        <groupId>com.google.oauth-client</groupId>
+	        <artifactId>google-oauth-client</artifactId>
+	        <version>1.33.2</version>
+	    </dependency>
+	
+	    <!-- GOOGLE OAUTH CLIENT JETTY - Para abrir browser -->
+	    <dependency>
+	        <groupId>com.google.oauth-client</groupId>
+	        <artifactId>google-oauth-client-jetty</artifactId>
+	        <version>1.33.2</version>
+	    </dependency>
+	
+	    <!-- GOOGLE AUTH - Gerenciamento de credenciais -->
+	    <dependency>
+	        <groupId>com.google.auth</groupId>
+	        <artifactId>google-auth-library-oauth2-http</artifactId>
+	        <version>1.19.0</version>
+	    </dependency>
+	
+	    <!-- GOOGLE HTTP CLIENT - Cliente HTTP -->
+	    <dependency>
+	        <groupId>com.google.http-client</groupId>
+	        <artifactId>google-http-client-jackson2</artifactId>
+	        <version>1.44.1</version>
+	    </dependency>
+			
         <!-- SPRING TEST - Starter para testes unitários e de integração com Spring Boot -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-test</artifactId>
 			<scope>test</scope>
 		</dependency>
+		
 	</dependencies>
 
 	<build>
@@ -101,7 +157,6 @@
 			<plugin>
 	            <groupId>org.apache.maven.plugins</groupId>
 	            <artifactId>maven-compiler-plugin</artifactId>
-	            <version>3.11.0</version>
 	            <configuration>
 	                <source>21</source>
 	                <target>21</target>
