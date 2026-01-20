@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+	<parent>
+		<groupId>org.springframework.boot</groupId>
+		<artifactId>spring-boot-starter-parent</artifactId>
+		<version>4.0.1</version>
+		<relativePath/> <!-- lookup parent from repository -->
+	</parent>
+	<groupId>br.com.sistema</groupId>
+	<artifactId>spring-ai-gemini-langchain4j-study</artifactId>
+	<version>0.0.1-SNAPSHOT</version>
+	<name>receitaAI-1</name>
+	<description>Projeto de estudo e exploração da integração de Inteligência Artificial (IA) em aplicações Spring Boot, utilizando o modelo de linguagem grande (LLM) Gemini do Google AI. Este projeto foca na implementação de capacidades de IA conversacional e processamento de linguagem natural através da biblioteca LangChain4j, demonstrando padrões de design e melhores práticas para o desenvolvimento de aplicações inteligentes. O objetivo é criar um ambiente prático para experimentar com prompts, cadeias de processamento (chains), agentes e outras funcionalidades avançadas de LLMs, visando a construção de funcionalidades como chatbots, sumarização de texto, geração de conteúdo e análise semântica.</description>
+	<url/>
+	<licenses>
+		<license/>
+	</licenses>
+	<developers>
+		<developer/>
+	</developers>
+	<scm>
+		<connection/>
+		<developerConnection/>
+		<tag/>
+		<url/>
+	</scm>
+	<properties>
+		<java.version>21</java.version>
+	</properties>
+	<dependencies>
+	
+		<!-- SPRING WEBMVC - Starter MVC para construção de aplicações web com Spring Boot -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-webmvc</artifactId>
+		</dependency>
+
+		<!-- SPRING BOOT DEVTOOLS - Ferramentas para desenvolvimento, como reinício automático e live reload -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-devtools</artifactId>
+			<scope>runtime</scope>
+			<optional>true</optional>
+		</dependency>
+		
+		<!-- LANGCHAIN4J GOOGLE AI GEMINI SPRING BOOT STARTER - Integração do modelo Gemini do Google AI com LangChain4j e Spring Boot -->
+		<dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j-google-ai-gemini-spring-boot-starter</artifactId>
+            <version>1.7.1-beta14</version>
+        </dependency>
+
+		<!-- LANGCHAIN4J SPRING BOOT STARTER - Integração do LangChain4j com Spring Boot -->
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j-spring-boot-starter</artifactId>
+            <version>1.7.1-beta14</version>
+        </dependency>
+        
+        <!-- SPRING TEST - Starter para testes unitários e de integração com Spring Boot -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-webmvc-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+		
+	</dependencies>
+
+	<build>
+		<plugins>
+			<plugin>
+				<groupId>org.springframework.boot</groupId>
+				<artifactId>spring-boot-maven-plugin</artifactId>
+			</plugin>
+		</plugins>
+	</build>
+
+</project>
