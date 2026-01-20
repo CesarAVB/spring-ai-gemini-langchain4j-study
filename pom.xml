@@ -5,8 +5,8 @@
 	<parent>
 		<groupId>org.springframework.boot</groupId>
 		<artifactId>spring-boot-starter-parent</artifactId>
-		<version>4.0.1</version>
-		<relativePath/> <!-- lookup parent from repository -->
+		<version>3.2.5</version>
+		<relativePath/>
 	</parent>
 	<groupId>br.com.sistema</groupId>
 	<artifactId>spring-ai-gemini-langchain4j-study</artifactId>
@@ -31,10 +31,10 @@
 	</properties>
 	<dependencies>
 	
-		<!-- SPRING WEBMVC - Starter MVC para construção de aplicações web com Spring Boot -->
+		<!-- SPRING WEB - Starter para aplicações web (inclui Web MVC) -->
 		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-webmvc</artifactId>
+		    <groupId>org.springframework.boot</groupId>
+		    <artifactId>spring-boot-starter-web</artifactId>
 		</dependency>
 
 		<!-- SPRING BOOT DEVTOOLS - Ferramentas para desenvolvimento, como reinício automático e live reload -->
@@ -42,6 +42,13 @@
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-devtools</artifactId>
 			<scope>runtime</scope>
+			<optional>true</optional>
+		</dependency>
+		
+		<!-- LOMBOK - Biblioteca que reduz código boilerplate, gerando automaticamente getters, setters, construtores, equals, hashCode e toString em tempo de compilação -->
+		<dependency>
+			<groupId>org.projectlombok</groupId>
+			<artifactId>lombok</artifactId>
 			<optional>true</optional>
 		</dependency>
 		
@@ -59,28 +66,57 @@
             <version>1.7.1-beta14</version>
         </dependency>
         
+        <!-- MAPSTRUCT - Biblioteca para mapeamento automático entre objetos Java -->
+        <dependency>
+	        <groupId>org.mapstruct</groupId>
+	        <artifactId>mapstruct</artifactId>
+	        <version>1.5.5.Final</version>
+	    </dependency>
+        
         <!-- SWAGGER / SPRINGDOC - Gera documentação da API REST (OpenAPI 3) com interface Swagger UI -->
 		<dependency>
 		    <groupId>org.springdoc</groupId>
 		    <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
-		    <version>2.7.0</version>
+		    <version>2.6.0</version>
 		</dependency>
         
         <!-- SPRING TEST - Starter para testes unitários e de integração com Spring Boot -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-webmvc-test</artifactId>
+			<artifactId>spring-boot-starter-test</artifactId>
 			<scope>test</scope>
 		</dependency>
-		
 	</dependencies>
 
 	<build>
 		<plugins>
+			
+			<!-- SPRING BOOT MAVEN PLUGIN - Plugin para empacotamento e execução de aplicações Spring Boot -->
 			<plugin>
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
 			</plugin>
+			
+			<!-- MAVEN COMPILER PLUGIN - Configuração do compilador Java e processador de anotações para MapStruct -->
+			<plugin>
+	            <groupId>org.apache.maven.plugins</groupId>
+	            <artifactId>maven-compiler-plugin</artifactId>
+	            <version>3.11.0</version>
+	            <configuration>
+	                <source>21</source>
+	                <target>21</target>
+	                <annotationProcessorPaths>
+	                    <path>
+	                        <groupId>org.mapstruct</groupId>
+	                        <artifactId>mapstruct-processor</artifactId>
+	                        <version>1.5.5.Final</version>
+	                    </path>
+	                </annotationProcessorPaths>
+	                <compilerArgs>
+			            <arg>-Amapstruct.defaultComponentModel=spring</arg>
+			        </compilerArgs>
+	            </configuration>
+	        </plugin>
 		</plugins>
 	</build>
 
