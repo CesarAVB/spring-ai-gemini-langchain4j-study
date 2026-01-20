@@ -1,5 +1,7 @@
 package br.com.sistema.springaigemini.tools;
 
+import org.springframework.stereotype.Component;
+
 import br.com.sistema.springaigemini.core.AssistantTool;
 import br.com.sistema.springaigemini.dtos.AvaliacaoFisicaDTO;
 import br.com.sistema.springaigemini.dtos.PacienteDTO;
@@ -8,7 +10,6 @@ import br.com.sistema.springaigemini.services.PlanoNutricionalCalculatorService;
 import dev.langchain4j.agent.tool.Tool;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
-import org.springframework.stereotype.Component;
 
 /**
  * Tools (ferramentas) para o assistente de planos nutricionais.
