@@ -1,4 +1,5 @@
 /tokens/
+/.ai-context
 application-local.properties
 HELP.md
 target/
