@@ -140,6 +140,24 @@
 	        <artifactId>google-http-client-jackson2</artifactId>
 	        <version>1.44.1</version>
 	    </dependency>
+	    
+	    <!-- SPRING DATA REDIS - Suporte para Redis -->
+		<dependency>
+		    <groupId>org.springframework.boot</groupId>
+		    <artifactId>spring-boot-starter-data-redis</artifactId>
+		</dependency>
+		
+		<!-- JEDIS - Driver Redis (recomendado) -->
+		<dependency>
+		    <groupId>redis.clients</groupId>
+		    <artifactId>jedis</artifactId>
+		</dependency>
+		
+		<!-- JACKSON CORE - Serialização JSON (pode já ter) -->
+		<dependency>
+		    <groupId>com.fasterxml.jackson.core</groupId>
+		    <artifactId>jackson-databind</artifactId>
+		</dependency>
 			
         <!-- SPRING TEST - Starter para testes unitários e de integração com Spring Boot -->
 		<dependency>
