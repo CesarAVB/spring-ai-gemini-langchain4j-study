@@ -104,6 +104,12 @@
 	        <groupId>com.google.api-client</groupId>
 	        <artifactId>google-api-client</artifactId>
 	        <version>1.35.2</version>
+	        <exclusions>
+		        <exclusion>
+		            <groupId>commons-logging</groupId>
+		            <artifactId>commons-logging</artifactId>
+		        </exclusion>
+		    </exclusions>
 	    </dependency>
 	
 	    <!-- GOOGLE API SERVICES - Gmail -->
