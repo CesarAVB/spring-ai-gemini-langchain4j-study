@@ -6,57 +6,71 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import com.google.api.client.auth.oauth2.Credential;
-import com.google.api.client.extensions.java6.auth.oauth2.AuthorizationCodeInstalledApp;
-import com.google.api.client.extensions.jetty.auth.oauth2.LocalServerReceiver;
+import com.google.api.client.auth.oauth2.TokenResponse;
 import com.google.api.client.googleapis.auth.oauth2.GoogleAuthorizationCodeFlow;
 import com.google.api.client.googleapis.auth.oauth2.GoogleClientSecrets;
 import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport;
+import com.google.api.client.http.HttpTransport;
 import com.google.api.client.json.jackson2.JacksonFactory;
-import com.google.api.client.util.store.FileDataStoreFactory;
+import com.google.api.client.util.store.MemoryDataStoreFactory;
 import com.google.api.services.gmail.Gmail;
 import com.google.api.services.gmail.GmailScopes;
 
+import jakarta.annotation.PostConstruct;
+
 @Component
 public class GmailAuthSetup {
-    
+
     @Value("${gmail.client-id}")
     private String clientId;
-    
+
     @Value("${gmail.client-secret}")
     private String clientSecret;
-    
+
     @Value("${gmail.redirect-uri}")
     private String redirectUri;
-    
+
+    @Value("${gmail.refresh-token}")
+    private String refreshToken;
+
     private static final String APPLICATION_NAME = "Gmail API Client";
     private static final JacksonFactory JSON_FACTORY = JacksonFactory.getDefaultInstance();
-    private static final String TOKENS_DIRECTORY_PATH = "tokens";
-    
-    public Gmail getGmailService() throws Exception {
-        var transport = GoogleNetHttpTransport.newTrustedTransport();
-        var credential = getCredentials(transport);
+    private GoogleAuthorizationCodeFlow flow;
+
+    @PostConstruct
+    public void init() throws Exception {
+        HttpTransport transport = GoogleNetHttpTransport.newTrustedTransport();
         
-        return new Gmail.Builder(transport, JSON_FACTORY, credential).setApplicationName(APPLICATION_NAME).build();
-    }
-    
-    private Credential getCredentials(com.google.api.client.http.HttpTransport transport) throws Exception {
-        // Cria secretos a partir do application.properties
+        // Configuramos como "Web" para aceitar URIs de domínios reais
         GoogleClientSecrets clientSecrets = new GoogleClientSecrets()
-            .setInstalled(new GoogleClientSecrets.Details()
+            .setWeb(new GoogleClientSecrets.Details()
                 .setClientId(clientId)
                 .setClientSecret(clientSecret)
                 .setRedirectUris(Collections.singletonList(redirectUri)));
-        
-        GoogleAuthorizationCodeFlow flow = new GoogleAuthorizationCodeFlow.Builder(
-                transport,
-                JSON_FACTORY,
-                clientSecrets,
+
+        this.flow = new GoogleAuthorizationCodeFlow.Builder(
+                transport, JSON_FACTORY, clientSecrets,
                 Collections.singletonList(GmailScopes.GMAIL_MODIFY))
-                .setDataStoreFactory(new FileDataStoreFactory(new java.io.File(TOKENS_DIRECTORY_PATH)))
+                // Usamos memória, pois o Refresh Token será recriado sempre no startup
+                .setDataStoreFactory(MemoryDataStoreFactory.getDefaultInstance())
                 .setAccessType("offline")
                 .build();
-        
-        LocalServerReceiver receiver = new LocalServerReceiver.Builder().setPort(8888).build();
-        return new AuthorizationCodeInstalledApp(flow, receiver).authorize("user");
+    }
+
+    public Gmail getGmailService() throws Exception {
+        // Tenta carregar da memória (se o app já estiver rodando há algum tempo)
+        Credential credential = flow.loadCredential("user");
+
+        // Se a memória estiver vazia (app acabou de subir), cria a credencial usando o Refresh Token
+        if (credential == null) {
+            TokenResponse tokenResponse = new TokenResponse();
+            tokenResponse.setRefreshToken(refreshToken);
+            
+            credential = flow.createAndStoreCredential(tokenResponse, "user");
+        }
+
+        return new Gmail.Builder(GoogleNetHttpTransport.newTrustedTransport(), JSON_FACTORY, credential)
+                .setApplicationName(APPLICATION_NAME)
+                .build();
     }
 }
