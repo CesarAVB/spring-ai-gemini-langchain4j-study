@@ -9,7 +9,6 @@ import com.google.api.client.auth.oauth2.Credential;
 import com.google.api.client.auth.oauth2.TokenResponse;
 import com.google.api.client.googleapis.auth.oauth2.GoogleAuthorizationCodeFlow;
 import com.google.api.client.googleapis.auth.oauth2.GoogleClientSecrets;
-import com.google.api.client.googleapis.auth.oauth2.GoogleCredential;
 import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport;
 import com.google.api.client.http.HttpTransport;
 import com.google.api.client.json.jackson2.JacksonFactory;
@@ -37,42 +36,48 @@ public class GmailAuthSetup {
 	private static final String APPLICATION_NAME = "Gmail API Client";
 	private static final JacksonFactory JSON_FACTORY = JacksonFactory.getDefaultInstance();
 	private GoogleAuthorizationCodeFlow flow;
+	private HttpTransport transport;
 
 	@PostConstruct
 	public void init() throws Exception {
-		HttpTransport transport = GoogleNetHttpTransport.newTrustedTransport();
+		this.transport = GoogleNetHttpTransport.newTrustedTransport();
 
-		// Configuramos como "Web" para aceitar URIs de domínios reais
 		GoogleClientSecrets clientSecrets = new GoogleClientSecrets()
 				.setWeb(new GoogleClientSecrets.Details().setClientId(clientId).setClientSecret(clientSecret)
 						.setRedirectUris(Collections.singletonList(redirectUri)));
 
 		this.flow = new GoogleAuthorizationCodeFlow.Builder(transport, JSON_FACTORY, clientSecrets,
 				Collections.singletonList(GmailScopes.GMAIL_MODIFY))
-				// Usamos memória, pois o Refresh Token será recriado sempre no startup
 				.setDataStoreFactory(MemoryDataStoreFactory.getDefaultInstance()).setAccessType("offline").build();
 	}
 
 	public Gmail getGmailService() throws Exception {
-		// Tenta carregar da memória (se o app já estiver rodando há algum tempo)
+		// 1. Tenta carregar a credencial da memória
 		Credential credential = flow.loadCredential("user");
 
-		// Se a memória estiver vazia (app acabou de subir), cria a credencial usando o
-		// Refresh Token
-		if (credential == null) {
-			credential = new GoogleCredential.Builder().setTransport(GoogleNetHttpTransport.newTrustedTransport())
-					.setJsonFactory(JSON_FACTORY).setClientSecrets(clientId, clientSecret).build()
-					.setRefreshToken(refreshToken);
+		// 2. Se for nula ou não tiver o Refresh Token configurado, injetamos
+		// manualmente
+		if (credential == null || credential.getRefreshToken() == null) {
+			TokenResponse tokenResponse = new TokenResponse();
+			tokenResponse.setRefreshToken(refreshToken);
 
-			// Força a renovação do Access Token usando o Refresh Token agora mesmo
-			credential.refreshToken();
-
-			// Opcional: Armazenar no flow para chamadas subsequentes não repetirem o
-			// refresh
-			flow.createAndStoreCredential(new TokenResponse().setRefreshToken(refreshToken), "user");
+			// Cria e armazena na memória (DataStore)
+			credential = flow.createAndStoreCredential(tokenResponse, "user");
 		}
 
-		return new Gmail.Builder(GoogleNetHttpTransport.newTrustedTransport(), JSON_FACTORY, credential)
-				.setApplicationName(APPLICATION_NAME).build();
+		// 3. Força a renovação do Access Token para garantir que a credencial está
+		// ativa
+		// Isso evita que o SDK tente abrir o navegador se o token expirar
+		try {
+			if (credential.getAccessToken() == null
+					|| (credential.getExpiresInSeconds() != null && credential.getExpiresInSeconds() < 60)) {
+				credential.refreshToken();
+			}
+		} catch (Exception e) {
+			// Se falhar aqui, o Refresh Token pode estar inválido ou revogado
+			throw new RuntimeException("Erro ao renovar token do Gmail. Verifique o Refresh Token. " + e.getMessage());
+		}
+
+		return new Gmail.Builder(transport, JSON_FACTORY, credential).setApplicationName(APPLICATION_NAME).build();
 	}
 }
