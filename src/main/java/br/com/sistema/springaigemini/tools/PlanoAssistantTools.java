@@ -3,10 +3,10 @@ package br.com.sistema.springaigemini.tools;
 import org.springframework.stereotype.Component;
 
 import br.com.sistema.springaigemini.core.AssistantTool;
-import br.com.sistema.springaigemini.dtos.AvaliacaoFisicaDTO;
-import br.com.sistema.springaigemini.dtos.PacienteDTO;
-import br.com.sistema.springaigemini.dtos.PlanoNutricionalDTO;
-import br.com.sistema.springaigemini.services.PlanoNutricionalCalculatorService;
+import br.com.sistema.springaigemini.dtos.request.plano.CreatePlanoRequest;
+import br.com.sistema.springaigemini.dtos.response.plano.PlanoResponse;
+import br.com.sistema.springaigemini.models.PlanoNutricional;
+import br.com.sistema.springaigemini.models.PlanoNutricional.Macronutrientes;
 import dev.langchain4j.agent.tool.Tool;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
@@ -14,17 +14,13 @@ import lombok.extern.log4j.Log4j2;
 /**
  * Tools (ferramentas) para o assistente de planos nutricionais.
  * 
- * IMPORTANTE: Estas ferramentas NÃO acessam banco de dados.
- * Elas recebem DTOs como entrada e realizam cálculos internamente.
- * 
+ * Recebe CreatePlanoRequest e retorna PlanoResponse via mappers.
  * Implementa AssistantTool para descoberta automática.
  */
 @Component
 @RequiredArgsConstructor
 @Log4j2
 public class PlanoAssistantTools implements AssistantTool {
-
-    private final PlanoNutricionalCalculatorService calculatorService;
 
     @Override
     public String getToolName() {
@@ -39,40 +35,38 @@ public class PlanoAssistantTools implements AssistantTool {
     /**
      * Calcula um plano nutricional personalizado.
      * 
-     * IMPORTANTE: Este método espera que os dados do paciente sejam passados como strings JSON.
-     * Em uma integração real, seria chamado pelo Controller com DTOs já parseados.
-     * 
-     * @param pacienteJson JSON com dados do paciente (id, nome, sexo, altura, dataNascimento)
-     * @param avaliacaoJson JSON com avaliação física (pesoAtual, percentualGordura, etc)
-     * @param objetivo emagrecimento, manutenção ou ganho_massa
-     * @param intensidadeExercicio sedentário, leve, moderado, intenso
+     * @param createPlanoRequest Request com dados do plano
      * @return resposta formatada com resultado do plano
      */
     @Tool("Calcula um plano nutricional personalizado sem acessar banco de dados")
-    public String calculateNutritionalPlan(
-            String pacienteJson,
-            String avaliacaoJson,
-            String objetivo,
-            String intensidadeExercicio) {
+    public String calculateNutritionalPlan(CreatePlanoRequest createPlanoRequest) {
 
         try {
-            // Em um cenário real, o Controller já teria os DTOs e os passaria diretamente
-            // Este é um exemplo de como seria se recebido via LangChain4j
+            if (createPlanoRequest == null) {
+                return "❌ Request nulo";
+            }
             
-            // Aqui você teria que fazer parse do JSON para DTOs
-            // Para este exemplo, retornamos uma resposta padronizada
+            if (!validarDados(createPlanoRequest)) {
+                return "❌ Dados inválidos para cálculo de plano";
+            }
             
             return String.format(
                     "✅ **PLANO NUTRICIONAL CALCULADO**\n\n" +
+                    "Paciente: %s\n" +
+                    "Idade: %d anos\n" +
+                    "Peso: %.1f kg\n" +
                     "Objetivo: %s\n" +
                     "Intensidade: %s\n" +
+                    "Recomendações: %d\n" +
                     "Status: Pronto para cálculo\n\n" +
                     "Use o endpoint POST /api/v1/plano/calcular com:\n" +
-                    "- PacienteDTO\n" +
-                    "- AvaliacaoFisicaDTO\n" +
-                    "- Objetivo\n" +
-                    "- Intensidade\n",
-                    objetivo, intensidadeExercicio
+                    "- CreatePlanoRequest\n",
+                    createPlanoRequest.nome(),
+                    createPlanoRequest.idade(),
+                    createPlanoRequest.pesoAtual(),
+                    createPlanoRequest.objetivo(), 
+                    createPlanoRequest.intensidadeExercicio(),
+                    createPlanoRequest.recomendacoes() != null ? createPlanoRequest.recomendacoes().size() : 0
             );
 
         } catch (Exception e) {
@@ -82,30 +76,38 @@ public class PlanoAssistantTools implements AssistantTool {
     }
 
     /**
-     * Obtém informações do paciente.
+     * Obtém informações do plano calculado.
      * 
-     * @param pacienteJson JSON com dados do paciente
+     * @param planoResponse Response com dados do plano
      * @return informações formatadas
      */
-    @Tool("Obtém informações do paciente")
-    public String getPacienteInfo(String pacienteJson) {
+    @Tool("Obtém informações do plano nutricional calculado")
+    public String getPlanoInfo(PlanoResponse planoResponse) {
         try {
-            // Parse do JSON para exibir informações
-            // Em cenário real, receberia PacienteDTO já parseado
+            if (planoResponse == null) {
+                return "❌ Plano nulo";
+            }
             
             return String.format(
-                    "📋 **INFORMAÇÕES DO PACIENTE**\n" +
-                    "Status: Dados recebidos via DTO\n" +
-                    "Integração: Independente (sem banco local)\n\n" +
-                    "Para calcular plano, forneça:\n" +
-                    "- Dados do paciente (altura, sexo, data nascimento)\n" +
-                    "- Avaliação física (peso, percentual gordura)\n" +
-                    "- Objetivo (emagrecimento/manutenção/ganho)\n" +
-                    "- Intensidade de exercício\n"
+                    "📋 **INFORMAÇÕES DO PLANO**\n\n" +
+                    "Nome: %s\n" +
+                    "Idade: %d anos\n" +
+                    "Peso Atual: %.1f kg\n" +
+                    "Objetivo: %s\n" +
+                    "Intensidade: %s\n" +
+                    "Recomendações: %d\n\n" +
+                    "Status: Dados recebidos via PlanoResponse\n" +
+                    "Integração: Independente (sem banco local)\n",
+                    planoResponse.nome(),
+                    planoResponse.idade(),
+                    planoResponse.pesoAtual(),
+                    planoResponse.objetivo(),
+                    planoResponse.intensidadeExercicio(),
+                    planoResponse.recomendacoes() != null ? planoResponse.recomendacoes().size() : 0
             );
 
         } catch (Exception e) {
-            log.error("Erro ao obter informações do paciente", e);
+            log.error("Erro ao obter informações do plano", e);
             return "❌ Erro ao processar informações: " + e.getMessage();
         }
     }
@@ -113,31 +115,32 @@ public class PlanoAssistantTools implements AssistantTool {
     /**
      * Valida se os dados recebidos são suficientes para cálculo.
      * 
-     * @param paciente DTO do paciente
-     * @param avaliacao DTO da avaliação
-     * @param objetivo objetivo do plano
-     * @param intensidade intensidade de exercício
+     * @param request Request com dados do plano
      * @return true se dados são válidos
      */
-    public boolean validarDados(
-            PacienteDTO paciente,
-            AvaliacaoFisicaDTO avaliacao,
-            String objetivo,
-            String intensidade) {
+    private boolean validarDados(CreatePlanoRequest request) {
 
-        if (paciente == null) {
-            log.warn("Paciente nulo");
+        if (request == null) {
+            log.warn("Request nula");
             return false;
         }
-        if (avaliacao == null) {
-            log.warn("Avaliação nula");
+        if (request.nome() == null || request.nome().isBlank()) {
+            log.warn("Nome não especificado");
             return false;
         }
-        if (objetivo == null || objetivo.isBlank()) {
+        if (request.idade() == null || request.idade() <= 0) {
+            log.warn("Idade inválida");
+            return false;
+        }
+        if (request.pesoAtual() == null || request.pesoAtual() <= 0) {
+            log.warn("Peso inválido");
+            return false;
+        }
+        if (request.objetivo() == null || request.objetivo().isBlank()) {
             log.warn("Objetivo não especificado");
             return false;
         }
-        if (intensidade == null || intensidade.isBlank()) {
+        if (request.intensidadeExercicio() == null || request.intensidadeExercicio().isBlank()) {
             log.warn("Intensidade não especificada");
             return false;
         }
@@ -148,31 +151,28 @@ public class PlanoAssistantTools implements AssistantTool {
     /**
      * Formata um plano calculado para exibição.
      * 
-     * @param plano plano calculado
+     * @param plano PlanoNutricional com dados calculados
      * @return string formatada com resultado
      */
-    public String formatarPlano(PlanoNutricionalDTO plano) {
+    public String formatarPlano(PlanoNutricional plano) {
+        if (plano == null) {
+            return "❌ Plano nulo";
+        }
+
         StringBuilder sb = new StringBuilder();
 
         sb.append(String.format(
-                "✅ **PLANO NUTRICIONAL - %s**\n\n" +
+                "✅ **PLANO NUTRICIONAL**\n\n" +
                 "👤 **Paciente:** %s\n" +
+                "📊 **Idade:** %d anos\n" +
+                "⚖️ **Peso:** %.1f kg\n" +
                 "🎯 **Objetivo:** %s\n" +
                 "💪 **Intensidade:** %s\n\n",
-                plano.dataCalculo(),
-                plano.nomePaciente(),
-                plano.objetivo(),
-                plano.intensidadeExercicio()
-        ));
-
-        sb.append(String.format(
-                "📊 **ANÁLISE CORPORAL**\n" +
-                "├─ Idade: %d anos\n" +
-                "├─ Altura: %.2f m\n" +
-                "└─ Peso: %.1f kg\n\n",
-                plano.idade(),
-                plano.alturaMetros(),
-                plano.pesoAtual()
+                plano.getNomePaciente(),
+                plano.getIdade(),
+                plano.getPesoAtual(),
+                plano.getObjetivo(),
+                plano.getIntensidadeExercicio()
         ));
 
         sb.append(String.format(
@@ -180,32 +180,39 @@ public class PlanoAssistantTools implements AssistantTool {
                 "├─ TMB: %.0f kcal/dia\n" +
                 "├─ Gasto: %.0f kcal/dia\n" +
                 "└─ Meta: %.0f kcal/dia\n\n",
-                plano.tmb(),
-                plano.gastoDiario(),
-                plano.caloriaAlvo()
+                plano.getTmb(),
+                plano.getGastoDiario(),
+                plano.getCaloriaAlvo()
         ));
 
-        var macro = plano.macronutrientes();
-        sb.append(String.format(
-                "🥗 **MACRONUTRIENTES**\n" +
-                "├─ Proteína: %.1fg (%.0f kcal - %.1f%%)\n" +
-                "├─ Carbo: %.1fg (%.0f kcal - %.1f%%)\n" +
-                "└─ Gordura: %.1fg (%.0f kcal - %.1f%%)\n\n",
-                macro.proteinaGramas(), macro.proteinaCalorias(), macro.proteinaPercentual(),
-                macro.carboidratoGramas(), macro.carboIdratoCalorias(), macro.carboidratoPercentual(),
-                macro.gorduraGramas(), macro.gorduraCalorias(), macro.gorduraPercentual()
-        ));
-
-        sb.append("📌 **RECOMENDAÇÕES**\n");
-        for (String rec : plano.recomendacoes()) {
-            sb.append("├─ ").append(rec).append("\n");
+        // Macronutrientes
+        Macronutrientes macro = plano.getMacronutrientes();
+        if (macro != null) {
+            sb.append(String.format(
+                    "🥗 **MACRONUTRIENTES**\n" +
+                    "├─ Proteína: %.1fg (%.0f kcal - %.1f%%)\n" +
+                    "├─ Carbo: %.1fg (%.0f kcal - %.1f%%)\n" +
+                    "└─ Gordura: %.1fg (%.0f kcal - %.1f%%)\n\n",
+                    macro.getProteinaGramas(), macro.getProteinaCalorias(), macro.getProteinaPercentual(),
+                    macro.getCarboidratoGramas(), macro.getCarboIdratoCalorias(), macro.getCarboidratoPercentual(),
+                    macro.getGorduraGramas(), macro.getGorduraCalorias(), macro.getGorduraPercentual()
+            ));
         }
 
-        sb.append(String.format(
-                "\n✓ Validade: %d dias\n" +
-                "✓ Microserviço: Independente (sem dependências externas)\n",
-                plano.validadeDias()
-        ));
+        sb.append("📌 **RECOMENDAÇÕES**\n");
+        if (plano.getRecomendacoes() != null && !plano.getRecomendacoes().isEmpty()) {
+            for (String rec : plano.getRecomendacoes()) {
+                sb.append("├─ ").append(rec).append("\n");
+            }
+        } else {
+            sb.append("├─ Nenhuma recomendação específica\n");
+        }
+
+        if (plano.getValidadeDias() != null) {
+            sb.append(String.format("\n✓ Validade: %d dias\n", plano.getValidadeDias()));
+        }
+
+        sb.append("✓ Microserviço: Independente (sem dependências externas)\n");
 
         return sb.toString();
     }
