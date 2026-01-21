@@ -65,8 +65,8 @@ public class GithubAssistantTools implements AssistantTool {
 	}
 
 	/**
-	 * Lista todos os repositórios do usuário
-	 * ✅ Retorna formato parseável: name|description|url|language|stars|forks|isPrivate
+	 * Lista todos os repositórios do usuário ✅ Retorna formato parseável:
+	 * name|description|url|language|stars|forks|isPrivate
 	 */
 	@Tool("Lista todos os repositórios do usuário no GitHub")
 	public String listRepositories() {
@@ -92,13 +92,8 @@ public class GithubAssistantTools implements AssistantTool {
 				int forks = repo.getForksCount();
 				boolean isPrivate = repo.isPrivate();
 
-				sb.append(name).append("|")
-					.append(description).append("|")
-					.append(url).append("|")
-					.append(language).append("|")
-					.append(stars).append("|")
-					.append(forks).append("|")
-					.append(isPrivate).append("\n");
+				sb.append(name).append("|").append(description).append("|").append(url).append("|").append(language)
+						.append("|").append(stars).append("|").append(forks).append("|").append(isPrivate).append("\n");
 			}
 
 			log.info("✅ {} repositórios retornados (formato parseável)", repos.size());
@@ -111,8 +106,8 @@ public class GithubAssistantTools implements AssistantTool {
 	}
 
 	/**
-	 * Lista arquivos da RAIZ de um repositório
-	 * ✅ Retorna formato parseável: type|name|path|size
+	 * Lista arquivos da RAIZ de um repositório ✅ Retorna formato parseável:
+	 * type|name|path|size
 	 */
 	@Tool("Lista todos os arquivos na raiz de um repositório")
 	public String listRepositoryFiles(String repositoryName) {
@@ -147,10 +142,7 @@ public class GithubAssistantTools implements AssistantTool {
 				String path = content.getPath();
 				long size = content.getSize();
 
-				sb.append(type).append("|")
-					.append(name).append("|")
-					.append(path).append("|")
-					.append(size).append("\n");
+				sb.append(type).append("|").append(name).append("|").append(path).append("|").append(size).append("\n");
 			}
 
 			log.info("✅ {} arquivos listados de: {}", contents.size(), repositoryName);
@@ -166,8 +158,8 @@ public class GithubAssistantTools implements AssistantTool {
 	}
 
 	/**
-	 * ✅ Lista arquivos de um DIRETÓRIO ESPECÍFICO (sob demanda)
-	 * Retorna formato parseável: type|name|path|size
+	 * ✅ Lista arquivos de um DIRETÓRIO ESPECÍFICO (sob demanda) Retorna formato
+	 * parseável: type|name|path|size
 	 */
 	@Tool("Lista arquivos dentro de um diretório específico do repositório")
 	public String listRepositoryFilesInDirectory(String repositoryName, String directoryPath) {
@@ -199,28 +191,26 @@ public class GithubAssistantTools implements AssistantTool {
 				return "";
 			}
 
+			// ✅ IMPORTANTE: Converter para ArrayList (lista original é imutável)
+			List<GHContent> mutableContents = new java.util.ArrayList<>(contents);
+
 			// ✅ Ordena: pastas primeiro, depois arquivos
-			contents.sort(Comparator
-				.comparing((GHContent c) -> !c.isDirectory())
-				.thenComparing(GHContent::getName)
-			);
+			mutableContents
+					.sort(Comparator.comparing((GHContent c) -> !c.isDirectory()).thenComparing(GHContent::getName));
 
 			StringBuilder sb = new StringBuilder();
 
 			// ✅ Formato parseável: type|name|path|size
-			for (GHContent content : contents) {
+			for (GHContent content : mutableContents) {
 				String type = content.isDirectory() ? "directory" : "file";
 				String name = content.getName();
 				String path = content.getPath();
 				long size = content.getSize();
 
-				sb.append(type).append("|")
-					.append(name).append("|")
-					.append(path).append("|")
-					.append(size).append("\n");
+				sb.append(type).append("|").append(name).append("|").append(path).append("|").append(size).append("\n");
 			}
 
-			log.info("✅ {} itens listados em: {}", contents.size(), directoryPath);
+			log.info("✅ {} itens listados em: {}", mutableContents.size(), directoryPath);
 			return sb.toString();
 
 		} catch (Exception e) {
