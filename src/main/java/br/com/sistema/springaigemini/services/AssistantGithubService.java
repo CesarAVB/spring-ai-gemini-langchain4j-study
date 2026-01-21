@@ -81,7 +81,7 @@ public class AssistantGithubService extends BaseAssistantService {
 
         } catch (Exception e) {
             log.error("❌ Erro ao processar mensagem no Github Assistant", e);
-            return handleError(e, getAssistantName());
+            return "Erro ao processar requisição do Github: " + e.getMessage();
         }
     }
 

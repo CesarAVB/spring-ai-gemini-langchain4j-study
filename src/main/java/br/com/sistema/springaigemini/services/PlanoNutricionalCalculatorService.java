@@ -1,206 +1,240 @@
 package br.com.sistema.springaigemini.services;
 
 import java.time.LocalDate;
-import java.time.Period;
 import java.util.Arrays;
 import java.util.List;
 
 import org.springframework.stereotype.Service;
 
-import br.com.sistema.springaigemini.dtos.AvaliacaoFisicaDTO;
-import br.com.sistema.springaigemini.dtos.PacienteDTO;
-import br.com.sistema.springaigemini.dtos.PlanoNutricionalDTO;
-import br.com.sistema.springaigemini.enums.IntensidadeExercicio;
-import br.com.sistema.springaigemini.enums.ObjetivoNutricional;
-import br.com.sistema.springaigemini.mappers.PlanoNutricionalMapper;
+import br.com.sistema.springaigemini.dtos.request.plano.CreatePlanoRequest;
 import br.com.sistema.springaigemini.models.PlanoNutricional;
+import br.com.sistema.springaigemini.models.PlanoNutricional.Macronutrientes;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.log4j.Log4j2;
 
 /**
  * Service de cálculo de plano nutricional.
  * 
- * IMPORTANTE: Este service é independente e não depende de nenhuma entidade do projeto de nutrição.
+ * Recebe CreatePlanoRequest como entrada.
+ * Realiza cálculos e retorna PlanoNutricional com todos os dados calculados.
  * 
- * Recebe DTOs como entrada (PacienteDTO, AvaliacaoFisicaDTO) que vêm de outro microserviço.
- * Realiza os cálculos internamente e retorna o resultado como PlanoNutricionalDTO.
+ * SEM banco de dados - totalmente em memória.
  */
 @Service
 @RequiredArgsConstructor
+@Log4j2
 public class PlanoNutricionalCalculatorService {
-
-    private final PlanoNutricionalMapper planoMapper;
 
     /**
      * Calcula um plano nutricional personalizado baseado nos dados do paciente.
      * 
-     * Este método é independente e recebe dados via DTOs, não dependendo de entidades locais.
-     * 
-     * @param pacienteDTO dados do paciente (vindo de outro microserviço)
-     * @param avaliacaoDTO avaliação física mais recente
-     * @param objetivo emagrecimento, manutenção ou ganho
-     * @param intensidadeExercicio nível de atividade
-     * @return DTO do plano calculado
-     * @throws IllegalArgumentException se objetivo ou intensidade forem inválidos
+     * @param request contém: nome, idade, pesoAtual, objetivo, intensidadeExercicio, recomendacoes
+     * @return PlanoNutricional com cálculos completos
+     * @throws IllegalArgumentException se dados forem inválidos
      */
-    public PlanoNutricionalDTO calcularPlano(
-            PacienteDTO pacienteDTO,
-            AvaliacaoFisicaDTO avaliacaoDTO,
-            String objetivo,
-            String intensidadeExercicio) {
-
+    public PlanoNutricional calcularPlano(CreatePlanoRequest request) {
+        
+        log.info("Iniciando cálculo de plano nutricional para: {}", request.nome());
+        
         // Validação de entrada
-        if (pacienteDTO == null) {
-            throw new IllegalArgumentException("Dados do paciente não podem ser nulos");
+        if (request == null) {
+            throw new IllegalArgumentException("Request não pode ser nulo");
         }
-        if (avaliacaoDTO == null) {
-            throw new IllegalArgumentException("Avaliação física não pode ser nula");
+        if (request.nome() == null || request.nome().isBlank()) {
+            throw new IllegalArgumentException("Nome do paciente é obrigatório");
+        }
+        if (request.idade() == null || request.idade() <= 0) {
+            throw new IllegalArgumentException("Idade deve ser maior que 0");
+        }
+        if (request.pesoAtual() == null || request.pesoAtual() <= 0) {
+            throw new IllegalArgumentException("Peso deve ser maior que 0");
+        }
+        if (request.objetivo() == null || request.objetivo().isBlank()) {
+            throw new IllegalArgumentException("Objetivo é obrigatório");
+        }
+        if (request.intensidadeExercicio() == null || request.intensidadeExercicio().isBlank()) {
+            throw new IllegalArgumentException("Intensidade de exercício é obrigatória");
         }
 
-        // Conversão de strings para enums com fallback
-        ObjetivoNutricional objEnum = ObjetivoNutricional.fromString(objetivo);
-        IntensidadeExercicio intensEnum = IntensidadeExercicio.fromString(intensidadeExercicio);
+        // Extrair dados
+        String nome = request.nome();
+        Integer idade = request.idade();
+        Double pesoAtual = request.pesoAtual();
+        String objetivo = request.objetivo();
+        String intensidadeExercicio = request.intensidadeExercicio();
+        List<String> recomendacoes = request.recomendacoes() != null ? 
+            request.recomendacoes() : gerarRecomendacoesDefault(objetivo);
 
-        // Cálculos básicos
-        Integer idade = calcularIdade(pacienteDTO.dataNascimento());
-        Double pesoKg = avaliacaoDTO.pesoAtual();
-        Double alturaMetros = pacienteDTO.altura();
-        Integer alturaCmd = (int) (alturaMetros * 100);
-        Boolean ehHomem = pacienteDTO.sexo().equalsIgnoreCase("M");
+        // Cálculos energéticos (TMB e gasto diário)
+        Double tmb = calcularTMB(pesoAtual, idade);
+        Double fatorIntensidade = obterFatorIntensidade(intensidadeExercicio);
+        Double gastoDiario = tmb * fatorIntensidade;
+        Double caloriaAlvo = ajustarPorObjetivo(gastoDiario, objetivo);
 
-        // Cálculos energéticos
-        Double tmb = calcularTMB(pesoKg, alturaCmd, idade, ehHomem);
-        Double gastoDiario = tmb * intensEnum.getFatorAtividade();
-        Double caloriaAlvo = gastoDiario * objEnum.getFatorAjuste();
+        // Distribuir macronutrientes
+        Macronutrientes macros = distribuirMacronutrientes(pesoAtual, caloriaAlvo, objetivo);
 
-        // Distribuição de macronutrientes
-        PlanoNutricional.Macronutrientes macros = distribuirMacronutrientes(pesoKg, caloriaAlvo, objEnum);
+        // Montar explicação
+        String explicacao = montarExplicacao(tmb, gastoDiario, caloriaAlvo, intensidadeExercicio, objetivo);
 
-        // Recomendações personalizadas
-        List<String> recomendacoes = gerarRecomendacoes(objEnum, intensEnum, pesoKg);
+        log.info("TMB: {} | Gasto: {} | Caloria Alvo: {}", tmb, gastoDiario, caloriaAlvo);
 
-        // Explicação dos cálculos
-        String explicacao = montarExplicacao(tmb, gastoDiario, caloriaAlvo, intensEnum, objEnum);
-
-        // Criar modelo intermediário
+        // Criar e retornar PlanoNutricional com TODOS os campos
         PlanoNutricional plano = new PlanoNutricional(
-                pacienteDTO.id(),
-                pacienteDTO.nome(),
-                alturaMetros,
-                Math.round(pesoKg * 10.0) / 10.0,
-                idade,
-                objEnum.getDescricao(),
-                intensEnum.getDescricao(),
-                Math.round(tmb * 10.0) / 10.0,
-                Math.round(gastoDiario * 10.0) / 10.0,
-                Math.round(caloriaAlvo * 10.0) / 10.0,
-                macros,
-                recomendacoes,
-                LocalDate.now(),
-                30,
-                explicacao
+            null,                          // pacienteId (null - sem BD)
+            nome,                          // nomePaciente
+            1.75,                          // alturaMetros (padrão, poderia vir do request)
+            pesoAtual,                     // pesoAtual
+            idade,                         // idade
+            objetivo,                      // objetivo
+            intensidadeExercicio,          // intensidadeExercicio
+            tmb,                           // tmb
+            gastoDiario,                   // gastoDiario
+            caloriaAlvo,                   // caloriaAlvo
+            macros,                        // macronutrientes
+            recomendacoes,                 // recomendacoes
+            LocalDate.now(),               // dataCalculo
+            30,                            // validadeDias
+            explicacao                     // explicacaoCalculo
         );
 
-        // Converter modelo para DTO via MapperStruct
-        return planoMapper.toDTO(plano);
+        log.info("✅ Plano calculado com sucesso para: {}", nome);
+        
+        return plano;
     }
 
     /**
-     * Calcula a Taxa Metabólica Basal (TMB) usando fórmula de Harris-Benedict.
+     * Calcula a Taxa Metabólica Basal (TMB) usando fórmula simplificada.
      * 
      * @param pesoKg peso em kg
-     * @param alturaCmd altura em cm
      * @param idade idade em anos
-     * @param ehHomem true se homem, false se mulher
      * @return TMB em kcal/dia
      */
-    private Double calcularTMB(Double pesoKg, Integer alturaCmd, Integer idade, Boolean ehHomem) {
-        if (ehHomem) {
-            // Homem: TMB = (10 × peso) + (6.25 × altura) - (5 × idade) + 5
-            return (10 * pesoKg) + (6.25 * alturaCmd) - (5 * idade) + 5;
-        } else {
-            // Mulher: TMB = (10 × peso) + (6.25 × altura) - (5 × idade) - 161
-            return (10 * pesoKg) + (6.25 * alturaCmd) - (5 * idade) - 161;
+    private Double calcularTMB(Double pesoKg, Integer idade) {
+        // Fórmula simplificada: TMB ≈ peso × 24 com ajuste por idade
+        Double tmb = pesoKg * 24;
+        
+        // Ajuste por idade (reduz ~2% a cada 10 anos após 30)
+        if (idade > 30) {
+            Integer anosApos30 = idade - 30;
+            Double reducao = (anosApos30 / 10.0) * 0.02;
+            tmb = tmb * (1 - reducao);
         }
+        
+        return Math.round(tmb * 10.0) / 10.0;
     }
 
     /**
-     * Distribui macronutrientes baseado no objetivo nutricional.
+     * Obtém fator de intensidade baseado no nível de exercício.
+     * 
+     * @param intensidade sedentário, leve, moderado, intenso
+     * @return fator multiplicador (1.2 a 1.9)
+     */
+    private Double obterFatorIntensidade(String intensidade) {
+        return switch (intensidade.toLowerCase()) {
+            case "sedentário", "sedentario" -> 1.2;
+            case "leve" -> 1.375;
+            case "moderado" -> 1.55;
+            case "intenso", "muito_intenso" -> 1.9;
+            default -> 1.4;
+        };
+    }
+
+    /**
+     * Ajusta calorias alvo baseado no objetivo.
+     * 
+     * @param gastoDiario gasto calórico diário
+     * @param objetivo emagrecimento, manutenção, ganho_massa
+     * @return calorias alvo ajustadas
+     */
+    private Double ajustarPorObjetivo(Double gastoDiario, String objetivo) {
+        return switch (objetivo.toLowerCase()) {
+            case "emagrecimento", "perda_peso" -> gastoDiario * 0.85; // 15% déficit
+            case "ganho_massa", "ganho" -> gastoDiario * 1.10;         // 10% superávit
+            default -> gastoDiario;                                     // manutenção
+        };
+    }
+
+    /**
+     * Distribui macronutrientes baseado no objetivo.
      * 
      * @param pesoKg peso em kg
      * @param caloriaAlvo calorias alvo diárias
-     * @param objetivo tipo de objetivo (emagrecimento, manutenção, ganho)
-     * @return objeto com distribuição de macros
+     * @param objetivo tipo de objetivo
+     * @return Macronutrientes calculados
      */
-    private PlanoNutricional.Macronutrientes distribuirMacronutrientes(
-            Double pesoKg, Double caloriaAlvo, ObjetivoNutricional objetivo) {
-
+    private Macronutrientes distribuirMacronutrientes(Double pesoKg, Double caloriaAlvo, String objetivo) {
+        
         Double proteinaGramas;
         Double percentualGordura;
         Double percentualCarboidrato;
 
-        switch (objetivo) {
-            case GANHO_MASSA -> {
-                proteinaGramas = pesoKg * 2.0;
-                percentualGordura = 0.30;
-                percentualCarboidrato = 0.50;
+        switch (objetivo.toLowerCase()) {
+            case "ganho_massa", "ganho" -> {
+                proteinaGramas = pesoKg * 2.0;  // 2g por kg
+                percentualGordura = 0.30;        // 30% gordura
+                percentualCarboidrato = 0.50;    // 50% carbs
             }
-            case EMAGRECIMENTO -> {
-                proteinaGramas = pesoKg * 1.6;
-                percentualGordura = 0.25;
-                percentualCarboidrato = 0.45;
+            case "emagrecimento", "perda_peso" -> {
+                proteinaGramas = pesoKg * 1.6;  // 1.6g por kg
+                percentualGordura = 0.25;        // 25% gordura
+                percentualCarboidrato = 0.45;    // 45% carbs
             }
             default -> {
-                proteinaGramas = pesoKg * 1.8;
-                percentualGordura = 0.28;
-                percentualCarboidrato = 0.47;
+                proteinaGramas = pesoKg * 1.8;  // 1.8g por kg
+                percentualGordura = 0.28;        // 28% gordura
+                percentualCarboidrato = 0.47;    // 47% carbs
             }
         }
 
         // Cálculos
-        Double proteinaCalorias = proteinaGramas * 4;
-        Double gorduraGramas = (caloriaAlvo * percentualGordura) / 9;
+        Double proteinaCalorias = proteinaGramas * 4;  // proteína = 4 kcal/g
+        Double gorduraGramas = (caloriaAlvo * percentualGordura) / 9;  // gordura = 9 kcal/g
         Double gorduraCalorias = gorduraGramas * 9;
         Double carboidratoCalorias = caloriaAlvo - proteinaCalorias - gorduraCalorias;
-        Double carboidratoGramas = carboidratoCalorias / 4;
+        Double carboidratoGramas = carboidratoCalorias / 4;  // carbs = 4 kcal/g
 
-        return new PlanoNutricional.Macronutrientes(
-                Math.round(proteinaGramas * 10.0) / 10.0,
-                Math.round(proteinaCalorias * 10.0) / 10.0,
-                Math.round((proteinaCalorias / caloriaAlvo * 100) * 10.0) / 10.0,
-                Math.round(carboidratoGramas * 10.0) / 10.0,
-                Math.round(carboidratoCalorias * 10.0) / 10.0,
-                Math.round((carboidratoCalorias / caloriaAlvo * 100) * 10.0) / 10.0,
-                Math.round(gorduraGramas * 10.0) / 10.0,
-                Math.round(gorduraCalorias * 10.0) / 10.0,
-                Math.round((gorduraCalorias / caloriaAlvo * 100) * 10.0) / 10.0
+        return new Macronutrientes(
+            Math.round(proteinaGramas * 10.0) / 10.0,
+            Math.round(proteinaCalorias * 10.0) / 10.0,
+            Math.round((proteinaCalorias / caloriaAlvo * 100) * 10.0) / 10.0,
+            Math.round(carboidratoGramas * 10.0) / 10.0,
+            Math.round(carboidratoCalorias * 10.0) / 10.0,
+            Math.round((carboidratoCalorias / caloriaAlvo * 100) * 10.0) / 10.0,
+            Math.round(gorduraGramas * 10.0) / 10.0,
+            Math.round(gorduraCalorias * 10.0) / 10.0,
+            Math.round((gorduraCalorias / caloriaAlvo * 100) * 10.0) / 10.0
         );
     }
 
     /**
-     * Gera recomendações personalizadas baseadas no objetivo.
+     * Gera recomendações padrão baseadas no objetivo.
+     * 
+     * @param objetivo tipo de objetivo
+     * @return lista de recomendações
      */
-    private List<String> gerarRecomendacoes(ObjetivoNutricional objetivo, IntensidadeExercicio intensidade, Double pesoKg) {
-        return switch (objetivo) {
-            case EMAGRECIMENTO -> Arrays.asList(
-                    "Aumentar ingestão de água: mínimo 3 litros por dia",
-                    "Distribuir proteína em 4-5 refeições para melhor absorção",
-                    "Priorizar fibras (alimentos integrais, frutas, verduras)",
-                    "Reduzir alimentos ultraprocessados e bebidas açucaradas",
-                    "Criar déficit calórico consistente com exercício regular"
+    private List<String> gerarRecomendacoesDefault(String objetivo) {
+        return switch (objetivo.toLowerCase()) {
+            case "emagrecimento", "perda_peso" -> Arrays.asList(
+                "Aumentar ingestão de água: mínimo 3 litros por dia",
+                "Distribuir proteína em 4-5 refeições para melhor absorção",
+                "Priorizar fibras (alimentos integrais, frutas, verduras)",
+                "Reduzir alimentos ultraprocessados e bebidas açucaradas",
+                "Criar déficit calórico consistente com exercício regular"
             );
-            case GANHO_MASSA -> Arrays.asList(
-                    "Consumir proteína alta em todas as refeições (25-35g)",
-                    "Preferir carboidratos complexos (aveia, batata doce, arroz integral)",
-                    "Comer a cada 3-4 horas para maximizar síntese proteica",
-                    "Aumentar superávit calórico gradualmente (200-300 kcal)",
-                    "Treino de força 4-5x por semana para ganho otimizado"
+            case "ganho_massa", "ganho" -> Arrays.asList(
+                "Consumir proteína alta em todas as refeições (25-35g)",
+                "Preferir carboidratos complexos (aveia, batata doce, arroz integral)",
+                "Comer a cada 3-4 horas para maximizar síntese proteica",
+                "Aumentar superávit calórico gradualmente (200-300 kcal)",
+                "Treino de força 4-5x por semana para ganho otimizado"
             );
             default -> Arrays.asList(
-                    "Manter consumo equilibrado de macronutrientes",
-                    "Distribuir refeições de 3 em 3 horas",
-                    "Beber 2-3 litros de água por dia",
-                    "Incluir fonte de proteína em todas as refeições",
-                    "Praticar exercício físico moderado 3-5x por semana"
+                "Manter consumo equilibrado de macronutrientes",
+                "Distribuir refeições de 3 em 3 horas",
+                "Beber 2-3 litros de água por dia",
+                "Incluir fonte de proteína em todas as refeições",
+                "Praticar exercício físico moderado 3-5x por semana"
             );
         };
     }
@@ -209,23 +243,13 @@ public class PlanoNutricionalCalculatorService {
      * Monta explicação textual dos cálculos realizados.
      */
     private String montarExplicacao(Double tmb, Double gastoDiario, Double caloriaAlvo,
-                                   IntensidadeExercicio intensidade, ObjetivoNutricional objetivo) {
+                                   String intensidade, String objetivo) {
         return String.format(
-                "Cálculo realizado por fórmula de Harris-Benedict. TMB: %.0f kcal. " +
-                "Com fator de atividade de %.2f (intensidade: %s), gasto diário é %.0f kcal. " +
-                "Aplicado ajuste de %s, resultando em %.0f kcal como meta diária.",
-                tmb, intensidade.getFatorAtividade(), intensidade.getDescricao(),
-                gastoDiario, objetivo.getDescricao(), caloriaAlvo
+            "Cálculo realizado por fórmula simplificada. TMB: %.0f kcal. " +
+            "Com fator de atividade de %.2f (intensidade: %s), gasto diário é %.0f kcal. " +
+            "Aplicado ajuste de %s, resultando em %.0f kcal como meta diária.",
+            tmb, obterFatorIntensidade(intensidade), intensidade,
+            gastoDiario, objetivo, caloriaAlvo
         );
-    }
-
-    /**
-     * Calcula idade a partir da data de nascimento.
-     */
-    private Integer calcularIdade(LocalDate dataNascimento) {
-        if (dataNascimento == null) {
-            throw new IllegalArgumentException("Data de nascimento não pode ser nula");
-        }
-        return Period.between(dataNascimento, LocalDate.now()).getYears();
     }
 }

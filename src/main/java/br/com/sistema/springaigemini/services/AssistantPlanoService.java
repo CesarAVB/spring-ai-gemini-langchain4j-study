@@ -3,54 +3,69 @@ package br.com.sistema.springaigemini.services;
 import org.springframework.stereotype.Service;
 
 import br.com.sistema.springaigemini.core.BaseAssistantService;
-import br.com.sistema.springaigemini.dtos.CalculoPlanoCompleteRequest;
-import br.com.sistema.springaigemini.dtos.PlanoNutricionalDTO;
-import dev.langchain4j.service.SystemMessage;
-import dev.langchain4j.service.UserMessage;
+import br.com.sistema.springaigemini.dtos.request.plano.CreatePlanoRequest;
+import br.com.sistema.springaigemini.dtos.response.plano.PlanoResponse;
+import br.com.sistema.springaigemini.mappers.response.plano.PlanoResponseMapper;
+import br.com.sistema.springaigemini.models.PlanoNutricional;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.log4j.Log4j2;
 
 /**
  * Assistente especializado em gerar e personalizar planos nutricionais.
  * 
  * IMPORTANTE: Este assistente é totalmente independente.
- * - Não depende de nenhuma entidade do projeto de nutrição
- * - Recebe dados via DTOs (vindo de outro microserviço)
+ * - Não depende de nenhuma entidade externa
+ * - Recebe CreatePlanoRequest como entrada
  * - Realiza cálculos internamente
- * - Retorna resultado via PlanoNutricionalDTO
+ * - Retorna PlanoResponse (via mapper)
+ * 
+ * Flow: CreatePlanoRequest → PlanoNutricional → PlanoResponse
  */
 @Service
 @RequiredArgsConstructor
+@Log4j2
 public class AssistantPlanoService extends BaseAssistantService {
 
     private final PlanoNutricionalCalculatorService calculatorService;
+    private final PlanoResponseMapper planoResponseMapper;
 
     /**
      * Calcula um plano nutricional completo.
      * 
-     * @param request contém PacienteDTO, AvaliacaoFisicaDTO, objetivo, intensidade
-     * @return plano calculado
+     * @param request contém nome, idade, pesoAtual, objetivo, intensidadeExercicio, recomendacoes
+     * @return PlanoResponse com resultado do cálculo
+     * @throws IllegalArgumentException se dados forem inválidos
      */
-    public PlanoNutricionalDTO calcularPlano(CalculoPlanoCompleteRequest request) {
-        return calculatorService.calcularPlano(
-                request.paciente(),
-                request.avaliacaoFisica(),
-                request.objetivo(),
-                request.intensidadeExercicio()
-        );
+    public PlanoResponse calcularPlano(CreatePlanoRequest request) {
+        log.info("Iniciando cálculo de plano para: {}", request.nome());
+        
+        try {
+            // 1. Calcular plano (CreatePlanoRequest → PlanoNutricional)
+            PlanoNutricional plano = calculatorService.calcularPlano(request);
+            
+            // 2. Converter para Response (PlanoNutricional → PlanoResponse)
+            PlanoResponse response = planoResponseMapper.toPlanoResponse(plano);
+            
+            log.info("✅ Plano calculado com sucesso");
+            return response;
+            
+        } catch (Exception e) {
+            log.error("❌ Erro ao calcular plano", e);
+            throw e;
+        }
     }
 
     /**
-     * Processa mensagem de usuário (para integração com LangChain4j).
+     * Processa mensagem de usuário (integração com LangChain4j).
      * 
      * @param userMessage mensagem do usuário
      * @return resposta processada
      */
     @Override
     public String processMessage(String userMessage) {
-        // Implementação será feita com @AiService do LangChain4j
-        throw new UnsupportedOperationException(
-                "Integração com LangChain4j @AiService necessária"
-        );
+        // Será implementado com @AiService do LangChain4j quando necessário
+        log.warn("processMessage ainda não implementado");
+        return "Assistente de planos ainda não integrado com IA";
     }
 
     @Override
@@ -64,56 +79,77 @@ public class AssistantPlanoService extends BaseAssistantService {
     }
 
     /**
-     * System message que define o contexto para geração de planos.
-     * Use esta anotação ao criar a interface AiService.
+     * Valida dados do request antes de calcular.
+     * 
+     * @param request CreatePlanoRequest a validar
+     * @return true se válido
      */
-    @SystemMessage("""
-            Você é um assistente especializado em geração e personalização de planos nutricionais.
-            
-            CONTEXTO:
-            - Atua em um microserviço independente de gestão nutricional
-            - Recebe dados do paciente via API (não consulta banco local)
-            - Gera planos baseados em dados reais (altura, peso, idade, objetivo)
-            - Tem acesso a ferramentas de cálculo nutricional
-            
-            DETECÇÃO DE INTENÇÃO:
-            
-            USE calculateNutritionalPlan() se:
-            - "Gere um plano para [paciente/ID]"
-            - "Qual é o plano nutricional para..."
-            - "Calcula quantas calorias..."
-            - "Qual deve ser a ingestão de proteína..."
-            
-            NÃO USE se:
-            - Pergunta é apenas informativa (ex: "o que é proteína?")
-            - Faltam dados para cálculo
-            - Usuário não especificou paciente
-            
-            REGRAS:
-            1. Sempre confirme dados do paciente
-            2. Peça objetivo e intensidade se não fornecidos
-            3. Explique resultado em linguagem clara
-            4. Destaque: TMB, calorias alvo, macros
-            5. Sempre dê recomendações personalizadas
-            """)
-    public String generatePlan(@UserMessage String userMessage) {
-        return processMessage(userMessage);
+    public boolean validarRequest(CreatePlanoRequest request) {
+        if (request == null) {
+            log.warn("Request nulo");
+            return false;
+        }
+        if (request.nome() == null || request.nome().isBlank()) {
+            log.warn("Nome inválido");
+            return false;
+        }
+        if (request.idade() == null || request.idade() <= 0) {
+            log.warn("Idade inválida");
+            return false;
+        }
+        if (request.pesoAtual() == null || request.pesoAtual() <= 0) {
+            log.warn("Peso inválido");
+            return false;
+        }
+        if (request.objetivo() == null || request.objetivo().isBlank()) {
+            log.warn("Objetivo inválido");
+            return false;
+        }
+        if (request.intensidadeExercicio() == null || request.intensidadeExercicio().isBlank()) {
+            log.warn("Intensidade inválida");
+            return false;
+        }
+        return true;
     }
 
     /**
-     * System message para ajuste de planos já calculados.
+     * Formata um plano para exibição.
+     * 
+     * @param response PlanoResponse a formatar
+     * @return string formatada
      */
-    @SystemMessage("""
-            Você recebe um plano nutricional já calculado e pode ajustá-lo conforme necessário.
-            
-            CAPACIDADES:
-            - Explicar cada componente do plano
-            - Sugerir ajustes (aumentar/diminuir calorias, rebalancear macros)
-            - Responder dúvidas sobre o plano
-            - Criar variações (ex: versão com mais proteína, menos carbs)
-            - Oferecer alternativas alimentares
-            """)
-    public String adjustPlan(@UserMessage String userMessage) {
-        return processMessage(userMessage);
+    public String formatarPlanoParaExibicao(PlanoResponse response) {
+        if (response == null) {
+            return "❌ Plano nulo";
+        }
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("✅ **PLANO NUTRICIONAL**\n\n");
+        
+        sb.append(String.format(
+            "👤 **Paciente:** %s\n" +
+            "📊 **Idade:** %d anos\n" +
+            "⚖️ **Peso:** %.1f kg\n" +
+            "🎯 **Objetivo:** %s\n" +
+            "💪 **Intensidade:** %s\n\n",
+            response.nome(),
+            response.idade(),
+            response.pesoAtual(),
+            response.objetivo(),
+            response.intensidadeExercicio()
+        ));
+
+        sb.append("📌 **RECOMENDAÇÕES**\n");
+        if (response.recomendacoes() != null && !response.recomendacoes().isEmpty()) {
+            for (String rec : response.recomendacoes()) {
+                sb.append("├─ ").append(rec).append("\n");
+            }
+        } else {
+            sb.append("├─ Nenhuma recomendação específica\n");
+        }
+
+        sb.append("\n✓ Microserviço: Independente (sem dependências externas)\n");
+
+        return sb.toString();
     }
 }

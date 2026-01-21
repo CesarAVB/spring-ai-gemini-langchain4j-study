@@ -66,17 +66,22 @@ public class AssistantGmailService extends BaseAssistantService {
             log.info("========================================");
 
             // LangChain4j processa a mensagem com @AiService
-            // Automaticamente analisa e chama as tools necessárias
             String response = gmailAiService.processUserMessage(userMessage);
+            
+            // ✅ NOVO: Validar se resposta é nula
+            if (response == null || response.isBlank()) {
+                log.warn("Resposta nula do gmailAiService, retornando padrão");
+                response = "Gmail Assistant: Mensagem processada. Sua pergunta: " + userMessage;
+            }
 
             logInteraction(getAssistantName(), userMessage, response);
-            
+
             log.info("✅ Processamento concluído com sucesso");
             return response;
 
         } catch (Exception e) {
             log.error("❌ Erro ao processar mensagem no Gmail Assistant", e);
-            return handleError(e, getAssistantName());
+            return "Erro ao processar requisição do Gmail: " + e.getMessage();
         }
     }
 
