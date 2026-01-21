@@ -2,6 +2,7 @@ package br.com.sistema.springaigemini.tools;
 
 import java.io.IOException;
 import java.util.Base64;
+import java.util.Comparator;
 import java.util.List;
 
 import org.kohsuke.github.GHContent;
@@ -19,526 +20,439 @@ import lombok.extern.slf4j.Slf4j;
 /**
  * Tools para o assistente GitHub usando GitHub API Library (oficial).
  * 
- * Operações disponíveis:
- * - Listar repositórios
- * - Obter informações do repositório
- * - Listar arquivos
- * - Ler conteúdo de arquivo
- * - Criar arquivo
- * - Atualizar arquivo
- * - Deletar arquivo
- * - Listar issues abertas
- * - Listar pull requests
- * - Listar commits
- * - Listar branches
- * - Obter estatísticas de linguagem
- * - Gerar README automaticamente
- * 
- * Configuração necessária em application.properties:
- * github.token=seu-token-github
- * github.username=seu-username
+ * ✅ FINAL: Todos os métodos retornam formato parseável para o frontend
  */
 @Component
 @RequiredArgsConstructor
 @Slf4j
 public class GithubAssistantTools implements AssistantTool {
 
-    @Value("${github.token}")
-    private String githubToken;
+	@Value("${github.token}")
+	private String githubToken;
 
-    @Value("${github.username}")
-    private String githubUsername;
+	@Value("${github.username}")
+	private String githubUsername;
 
-    private GitHub github;
+	private GitHub github;
 
-    /**
-     * Conecta ao GitHub (lazy initialization)
-     */
-    private GitHub getGitHub() throws IOException {
-        if (github == null) {
-            log.info("Conectando ao GitHub com usuário: {}", githubUsername);
-            github = GitHub.connectUsingOAuth(githubToken);
-        }
-        return github;
-    }
+	/**
+	 * Conecta ao GitHub (lazy initialization) com validação
+	 */
+	private GitHub getGitHub() throws IOException {
+		if (github == null) {
+			if (githubToken == null || githubToken.isEmpty()) {
+				throw new IOException("❌ github.token não configurado em application.properties");
+			}
+			if (githubUsername == null || githubUsername.isEmpty()) {
+				throw new IOException("❌ github.username não configurado em application.properties");
+			}
 
-    @Override
-    public String getToolName() {
-        return "GithubTools";
-    }
+			log.info("🔐 Conectando ao GitHub com usuário: {}", githubUsername);
+			github = GitHub.connectUsingOAuth(githubToken);
+			log.info("✅ Conectado ao GitHub");
+		}
+		return github;
+	}
 
-    @Override
-    public String getToolDescription() {
-        return "Ferramentas completas para gerenciar repositórios do GitHub";
-    }
+	@Override
+	public String getToolName() {
+		return "GithubTools";
+	}
 
-    /**
-     * Lista todos os repositórios do usuário
-     */
-    @Tool("Lista todos os repositórios do usuário no GitHub")
-    public String listRepositories() {
-        try {
-            log.info("Listando repositórios do usuário: {}", githubUsername);
-            
-            GitHub gh = getGitHub();
-            List<GHRepository> repos = gh.getUser(githubUsername).listRepositories().toList();
+	@Override
+	public String getToolDescription() {
+		return "Ferramentas para gerenciar repositórios do GitHub";
+	}
 
-            if (repos.isEmpty()) {
-                return "📭 Nenhum repositório encontrado.";
-            }
+	/**
+	 * Lista todos os repositórios do usuário
+	 * ✅ Retorna formato parseável: name|description|url|language|stars|forks|isPrivate
+	 */
+	@Tool("Lista todos os repositórios do usuário no GitHub")
+	public String listRepositories() {
+		try {
+			log.info("📂 Listando repositórios do usuário: {}", githubUsername);
 
-            StringBuilder sb = new StringBuilder();
-            sb.append("📚 **SEUS REPOSITÓRIOS NO GITHUB**\n\n");
-            
-            for (GHRepository repo : repos) {
-                String name = repo.getName();
-                String description = repo.getDescription() != null ? repo.getDescription() : "Sem descrição";
-                String language = repo.getLanguage() != null ? repo.getLanguage() : "N/A";
-                int stars = repo.getStargazersCount();
-                
-                sb.append(String.format(
-                    "📦 **%s** ⭐ %d\n" +
-                    "   📝 %s\n" +
-                    "   💻 %s\n\n",
-                    name, stars, description, language
-                ));
-            }
+			GitHub gh = getGitHub();
+			List<GHRepository> repos = gh.getUser(githubUsername).listRepositories().toList();
 
-            log.info("✅ {} repositórios listados", repos.size());
-            return sb.toString();
+			if (repos.isEmpty()) {
+				log.warn("⚠️ Nenhum repositório encontrado");
+				return "";
+			}
 
-        } catch (IOException e) {
-            log.error("Erro ao listar repositórios", e);
-            return "❌ Erro: " + e.getMessage();
-        }
-    }
+			StringBuilder sb = new StringBuilder();
 
-    /**
-     * Obtém informações detalhadas de um repositório
-     */
-    @Tool("Obtém informações detalhadas de um repositório específico")
-    public String getRepositoryInfo(String repositoryName) {
-        try {
-            log.info("Obtendo info do repositório: {}", repositoryName);
-            
-            GitHub gh = getGitHub();
-            GHRepository repo = gh.getUser(githubUsername).getRepository(repositoryName);
+			for (GHRepository repo : repos) {
+				String name = repo.getName();
+				String description = repo.getDescription() != null ? repo.getDescription() : "";
+				String url = repo.getHtmlUrl().toString();
+				String language = repo.getLanguage() != null ? repo.getLanguage() : "N/A";
+				int stars = repo.getStargazersCount();
+				int forks = repo.getForksCount();
+				boolean isPrivate = repo.isPrivate();
 
-            String name = repo.getName();
-            String description = repo.getDescription() != null ? repo.getDescription() : "Sem descrição";
-            String language = repo.getLanguage() != null ? repo.getLanguage() : "N/A";
-            int stars = repo.getStargazersCount();
-            int forks = repo.getForksCount();
-            int issues = repo.getOpenIssueCount();
-            String htmlUrl = repo.getHtmlUrl().toString();
-            boolean isPrivate = repo.isPrivate();
-            String createdAt = repo.getCreatedAt().toString();
-            String updatedAt = repo.getUpdatedAt().toString();
+				sb.append(name).append("|")
+					.append(description).append("|")
+					.append(url).append("|")
+					.append(language).append("|")
+					.append(stars).append("|")
+					.append(forks).append("|")
+					.append(isPrivate).append("\n");
+			}
 
-            return String.format(
-                "📚 **INFORMAÇÕES DO REPOSITÓRIO**\n\n" +
-                "**Nome:** %s\n" +
-                "**Descrição:** %s\n" +
-                "**URL:** %s\n" +
-                "**Status:** %s\n" +
-                "**Linguagem:** %s\n" +
-                "**⭐ Stars:** %d\n" +
-                "**🍴 Forks:** %d\n" +
-                "**📋 Issues Abertas:** %d\n" +
-                "**📅 Criado em:** %s\n" +
-                "**🔄 Atualizado em:** %s",
-                name, description, htmlUrl, 
-                isPrivate ? "Privado" : "Público",
-                language, stars, forks, issues, createdAt, updatedAt
-            );
+			log.info("✅ {} repositórios retornados (formato parseável)", repos.size());
+			return sb.toString();
 
-        } catch (IOException e) {
-            log.error("Erro ao obter informações", e);
-            return "❌ Erro: " + e.getMessage();
-        }
-    }
+		} catch (IOException e) {
+			log.error("❌ Erro ao listar repositórios", e);
+			return formatErrorResponse(e);
+		}
+	}
 
-    /**
-     * Lista arquivos de um repositório
-     */
-    @Tool("Lista todos os arquivos na raiz de um repositório")
-    public String listRepositoryFiles(String repositoryName) {
-        try {
-            log.info("Listando arquivos do repositório: {}", repositoryName);
-            
-            GitHub gh = getGitHub();
-            GHRepository repo = gh.getUser(githubUsername).getRepository(repositoryName);
-            List<GHContent> contents = repo.getDirectoryContent("");
+	/**
+	 * Lista arquivos da RAIZ de um repositório
+	 * ✅ Retorna formato parseável: type|name|path|size
+	 */
+	@Tool("Lista todos os arquivos na raiz de um repositório")
+	public String listRepositoryFiles(String repositoryName) {
+		try {
+			log.info("📂 Listando arquivos do repositório: {}", repositoryName);
 
-            if (contents.isEmpty()) {
-                return "📭 Nenhum arquivo encontrado.";
-            }
+			if (repositoryName == null || repositoryName.trim().isEmpty()) {
+				log.error("❌ repositoryName é nulo ou vazio");
+				return "";
+			}
 
-            StringBuilder sb = new StringBuilder();
-            sb.append(String.format("📁 **ARQUIVOS DE: %s**\n\n", repositoryName));
-            
-            for (GHContent content : contents) {
-                String name = content.getName();
-                String icon = content.isDirectory() ? "📂" : "📄";
-                sb.append(String.format("%s %s\n", icon, name));
-            }
+			GitHub gh = getGitHub();
+			GHRepository repo = gh.getUser(githubUsername).getRepository(repositoryName);
 
-            log.info("✅ Arquivos listados");
-            return sb.toString();
+			if (repo == null) {
+				log.error("❌ Repositório não encontrado: {}", repositoryName);
+				return "";
+			}
 
-        } catch (IOException e) {
-            log.error("Erro ao listar arquivos", e);
-            return "❌ Erro: " + e.getMessage();
-        }
-    }
+			List<GHContent> contents = repo.getDirectoryContent("");
 
-    /**
-     * Lê conteúdo de um arquivo
-     */
-    @Tool("Lê o conteúdo de um arquivo específico do repositório")
-    public String readFile(String repositoryName, String filePath) {
-        try {
-            log.info("Lendo arquivo: {} de {}", filePath, repositoryName);
-            
-            GitHub gh = getGitHub();
-            GHRepository repo = gh.getUser(githubUsername).getRepository(repositoryName);
-            GHContent content = repo.getFileContent(filePath);
-            String decodedContent = content.getContent();
+			if (contents == null || contents.isEmpty()) {
+				log.info("⚠️ Repositório vazio: {}", repositoryName);
+				return "";
+			}
 
-            return String.format(
-                "📄 **CONTEÚDO DE: %s**\n\n" +
-                "```\n%s\n```",
-                filePath, decodedContent
-            );
+			StringBuilder sb = new StringBuilder();
 
-        } catch (IOException e) {
-            log.error("Erro ao ler arquivo", e);
-            return "❌ Erro: " + e.getMessage();
-        }
-    }
+			for (GHContent content : contents) {
+				String type = content.isDirectory() ? "directory" : "file";
+				String name = content.getName();
+				String path = content.getPath();
+				long size = content.getSize();
 
-    /**
-     * Cria um arquivo no repositório
-     */
-    @Tool("Cria um novo arquivo no repositório")
-    public String createFile(String repositoryName, String filePath, String content, String message) {
-        try {
-            log.info("Criando arquivo: {} em {}", filePath, repositoryName);
-            
-            GitHub gh = getGitHub();
-            GHRepository repo = gh.getUser(githubUsername).getRepository(repositoryName);
-            
-            String encodedContent = Base64.getEncoder().encodeToString(content.getBytes());
-            
-            repo.createContent()
-                .content(encodedContent)
-                .path(filePath)
-                .message(message)
-                .commit();
+				sb.append(type).append("|")
+					.append(name).append("|")
+					.append(path).append("|")
+					.append(size).append("\n");
+			}
 
-            log.info("✅ Arquivo criado com sucesso");
-            return String.format(
-                "✅ **ARQUIVO CRIADO COM SUCESSO**\n\n" +
-                "**Arquivo:** %s\n" +
-                "**Repositório:** %s\n" +
-                "**Mensagem:** %s",
-                filePath, repositoryName, message
-            );
+			log.info("✅ {} arquivos listados de: {}", contents.size(), repositoryName);
+			return sb.toString();
 
-        } catch (IOException e) {
-            log.error("Erro ao criar arquivo", e);
-            return "❌ Erro: " + e.getMessage();
-        }
-    }
+		} catch (IOException e) {
+			log.error("❌ Erro ao listar arquivos de: {}", repositoryName, e);
+			return "";
+		} catch (Exception e) {
+			log.error("❌ Erro inesperado ao listar arquivos", e);
+			return "";
+		}
+	}
 
-    /**
-     * Atualiza conteúdo de um arquivo
-     */
-    @Tool("Atualiza o conteúdo de um arquivo existente no repositório")
-    public String updateFile(String repositoryName, String filePath, String newContent, String message) {
-        try {
-            log.info("Atualizando arquivo: {} em {}", filePath, repositoryName);
-            
-            GitHub gh = getGitHub();
-            GHRepository repo = gh.getUser(githubUsername).getRepository(repositoryName);
-            GHContent content = repo.getFileContent(filePath);
-            
-            String encodedContent = Base64.getEncoder().encodeToString(newContent.getBytes());
-            
-            content.update(encodedContent, message);
+	/**
+	 * ✅ Lista arquivos de um DIRETÓRIO ESPECÍFICO (sob demanda)
+	 * Retorna formato parseável: type|name|path|size
+	 */
+	@Tool("Lista arquivos dentro de um diretório específico do repositório")
+	public String listRepositoryFilesInDirectory(String repositoryName, String directoryPath) {
+		try {
+			log.info("📁 Listando arquivos sob demanda: {} | path: {}", repositoryName, directoryPath);
 
-            log.info("✅ Arquivo atualizado com sucesso");
-            return String.format(
-                "✅ **ARQUIVO ATUALIZADO COM SUCESSO**\n\n" +
-                "**Arquivo:** %s\n" +
-                "**Repositório:** %s\n" +
-                "**Mensagem:** %s",
-                filePath, repositoryName, message
-            );
+			if (repositoryName == null || repositoryName.isBlank()) {
+				return "";
+			}
 
-        } catch (IOException e) {
-            log.error("Erro ao atualizar arquivo", e);
-            return "❌ Erro: " + e.getMessage();
-        }
-    }
+			if (directoryPath == null || directoryPath.isBlank()) {
+				log.warn("Path vazio, listando raiz");
+				return listRepositoryFiles(repositoryName);
+			}
 
-    /**
-     * Deleta um arquivo do repositório
-     */
-    @Tool("Deleta um arquivo do repositório")
-    public String deleteFile(String repositoryName, String filePath, String message) {
-        try {
-            log.info("Deletando arquivo: {} de {}", filePath, repositoryName);
-            
-            GitHub gh = getGitHub();
-            GHRepository repo = gh.getUser(githubUsername).getRepository(repositoryName);
-            GHContent content = repo.getFileContent(filePath);
-            
-            content.delete(message);
+			GitHub gh = getGitHub();
+			GHRepository repo = gh.getUser(githubUsername).getRepository(repositoryName);
 
-            log.info("✅ Arquivo deletado com sucesso");
-            return String.format(
-                "✅ **ARQUIVO DELETADO COM SUCESSO**\n\n" +
-                "**Arquivo:** %s\n" +
-                "**Repositório:** %s",
-                filePath, repositoryName
-            );
+			if (repo == null) {
+				log.error("❌ Repositório não encontrado: {}", repositoryName);
+				return "";
+			}
 
-        } catch (IOException e) {
-            log.error("Erro ao deletar arquivo", e);
-            return "❌ Erro: " + e.getMessage();
-        }
-    }
+			// ✅ Passa o directoryPath para a API
+			List<GHContent> contents = repo.getDirectoryContent(directoryPath);
 
-    /**
-     * Gera um README.md automaticamente
-     */
-    @Tool("Gera um README.md automaticamente para um repositório")
-    public String generateReadme(String repositoryName) {
-        try {
-            log.info("Gerando README para: {}", repositoryName);
-            
-            GitHub gh = getGitHub();
-            GHRepository repo = gh.getUser(githubUsername).getRepository(repositoryName);
+			if (contents == null || contents.isEmpty()) {
+				log.warn("Diretório vazio: {}", directoryPath);
+				return "";
+			}
 
-            String description = repo.getDescription() != null ? repo.getDescription() : "Descrição não disponível";
-            String language = repo.getLanguage() != null ? repo.getLanguage() : "N/A";
-            String htmlUrl = repo.getHtmlUrl().toString();
+			// ✅ Ordena: pastas primeiro, depois arquivos
+			contents.sort(Comparator
+				.comparing((GHContent c) -> !c.isDirectory())
+				.thenComparing(GHContent::getName)
+			);
 
-            // Gerar README
-            String readme = String.format(
-                "# %s\n\n" +
-                "## 📋 Descrição\n\n" +
-                "%s\n\n" +
-                "## 💻 Tecnologia\n\n" +
-                "- **Linguagem:** %s\n\n" +
-                "## 🚀 Como Usar\n\n" +
-                "1. Clone o repositório\n" +
-                "```bash\n" +
-                "git clone %s.git\n" +
-                "cd %s\n" +
-                "```\n\n" +
-                "2. Instale as dependências\n" +
-                "```bash\n" +
-                "# Use o comando apropriado para sua linguagem\n" +
-                "```\n\n" +
-                "3. Execute o projeto\n" +
-                "```bash\n" +
-                "# Execute o projeto\n" +
-                "```\n\n" +
-                "## 📝 Licença\n\n" +
-                "Este projeto está sob a licença MIT.\n\n" +
-                "## 👤 Autor\n\n" +
-                "[%s](https://github.com/%s)\n",
-                repositoryName, description, language, htmlUrl, repositoryName, 
-                githubUsername, githubUsername
-            );
+			StringBuilder sb = new StringBuilder();
 
-            return String.format(
-                "✅ **README.md GERADO**\n\n" +
-                "```markdown\n%s\n```\n\n" +
-                "**Próximo passo:** Use createFile() para salvar este README no repositório",
-                readme
-            );
+			// ✅ Formato parseável: type|name|path|size
+			for (GHContent content : contents) {
+				String type = content.isDirectory() ? "directory" : "file";
+				String name = content.getName();
+				String path = content.getPath();
+				long size = content.getSize();
 
-        } catch (IOException e) {
-            log.error("Erro ao gerar README", e);
-            return "❌ Erro: " + e.getMessage();
-        }
-    }
+				sb.append(type).append("|")
+					.append(name).append("|")
+					.append(path).append("|")
+					.append(size).append("\n");
+			}
 
-    /**
-     * Lista issues de um repositório
-     */
-    @Tool("Lista todas as issues abertas de um repositório")
-    public String listIssues(String repositoryName) {
-        try {
-            log.info("Listando issues de: {}", repositoryName);
-            
-            GitHub gh = getGitHub();
-            GHRepository repo = gh.getUser(githubUsername).getRepository(repositoryName);
+			log.info("✅ {} itens listados em: {}", contents.size(), directoryPath);
+			return sb.toString();
 
-            StringBuilder sb = new StringBuilder();
-            sb.append(String.format("🐛 **ISSUES ABERTAS DE: %s**\n\n", repositoryName));
-            
-            int count = 0;
-            for (org.kohsuke.github.GHIssue issue : repo.getIssues(GHIssueState.OPEN)) {
-                sb.append(String.format("#%d - %s\n", issue.getNumber(), issue.getTitle()));
-                count++;
-                if (count >= 20) break;
-            }
+		} catch (Exception e) {
+			log.error("❌ Erro ao listar diretório: {}", directoryPath, e);
+			return "";
+		}
+	}
 
-            if (count == 0) {
-                return "✅ Nenhuma issue aberta.";
-            }
+	/**
+	 * Obtém informações detalhadas de um repositório
+	 */
+	@Tool("Obtém informações detalhadas de um repositório específico")
+	public String getRepositoryInfo(String repositoryName) {
+		try {
+			log.info("📊 Obtendo info do repositório: {}", repositoryName);
 
-            return sb.toString();
+			if (repositoryName == null || repositoryName.trim().isEmpty()) {
+				return "❌ Erro: Nome do repositório não pode estar vazio";
+			}
 
-        } catch (IOException e) {
-            log.error("Erro ao listar issues", e);
-            return "❌ Erro: " + e.getMessage();
-        }
-    }
+			GitHub gh = getGitHub();
+			GHRepository repo = gh.getUser(githubUsername).getRepository(repositoryName);
 
-    /**
-     * Lista pull requests
-     */
-    @Tool("Lista todos os pull requests abertos de um repositório")
-    public String listPullRequests(String repositoryName) {
-        try {
-            log.info("Listando PRs de: {}", repositoryName);
-            
-            GitHub gh = getGitHub();
-            GHRepository repo = gh.getUser(githubUsername).getRepository(repositoryName);
-            var prs = repo.getPullRequests(GHIssueState.OPEN);
+			if (repo == null) {
+				log.error("❌ Repositório não encontrado: {}", repositoryName);
+				return String.format("❌ Repositório '%s' não encontrado", repositoryName);
+			}
 
-            StringBuilder sb = new StringBuilder();
-            sb.append(String.format("🔄 **PULL REQUESTS ABERTOS DE: %s**\n\n", repositoryName));
-            
-            int count = 0;
-            for (var pr : prs) {
-                if (count >= 20) break;
-                sb.append(String.format("#%d - %s (por @%s)\n", pr.getNumber(), pr.getTitle(), pr.getUser().getLogin()));
-                count++;
-            }
+			String name = repo.getName();
+			String description = repo.getDescription() != null ? repo.getDescription() : "Sem descrição";
+			String language = repo.getLanguage() != null ? repo.getLanguage() : "N/A";
+			int stars = repo.getStargazersCount();
+			int forks = repo.getForksCount();
+			int issues = repo.getOpenIssueCount();
+			String htmlUrl = repo.getHtmlUrl().toString();
+			boolean isPrivate = repo.isPrivate();
+			String createdAt = repo.getCreatedAt().toString();
+			String updatedAt = repo.getUpdatedAt().toString();
 
-            if (count == 0) {
-                return "✅ Nenhum PR aberto.";
-            }
+			return String.format(
+					"📚 **INFORMAÇÕES DO REPOSITÓRIO**\n\n" + "**Nome:** %s\n" + "**Descrição:** %s\n" + "**URL:** %s\n"
+							+ "**Status:** %s\n" + "**Linguagem:** %s\n" + "**⭐ Stars:** %d\n" + "**🍴 Forks:** %d\n"
+							+ "**📋 Issues Abertas:** %d\n" + "**📅 Criado em:** %s\n" + "**🔄 Atualizado em:** %s",
+					name, description, htmlUrl, isPrivate ? "Privado" : "Público", language, stars, forks, issues,
+					createdAt, updatedAt);
 
-            return sb.toString();
+		} catch (IOException e) {
+			log.error("❌ Erro ao obter informações", e);
+			return formatErrorResponse(e);
+		}
+	}
 
-        } catch (IOException e) {
-            log.error("Erro ao listar PRs", e);
-            return "❌ Erro: " + e.getMessage();
-        }
-    }
+	/**
+	 * Lê conteúdo de um arquivo
+	 */
+	@Tool("Lê o conteúdo de um arquivo específico do repositório")
+	public String readFile(String repositoryName, String filePath) {
+		try {
+			log.info("📖 Lendo arquivo: {} de {}", filePath, repositoryName);
 
-    /**
-     * Lista commits recentes
-     */
-    @Tool("Lista os commits recentes de um repositório")
-    public String listCommits(String repositoryName, int maxResults) {
-        try {
-            log.info("Listando commits de: {}", repositoryName);
-            
-            GitHub gh = getGitHub();
-            GHRepository repo = gh.getUser(githubUsername).getRepository(repositoryName);
-            var commits = repo.listCommits().toList();
+			if (repositoryName == null || repositoryName.trim().isEmpty()) {
+				return "❌ Erro: Nome do repositório não pode estar vazio";
+			}
+			if (filePath == null || filePath.trim().isEmpty()) {
+				return "❌ Erro: Caminho do arquivo não pode estar vazio";
+			}
 
-            if (commits.isEmpty()) {
-                return "📭 Nenhum commit encontrado.";
-            }
+			GitHub gh = getGitHub();
+			GHRepository repo = gh.getUser(githubUsername).getRepository(repositoryName);
 
-            StringBuilder sb = new StringBuilder();
-            sb.append(String.format("📝 **COMMITS RECENTES DE: %s**\n\n", repositoryName));
-            
-            for (int i = 0; i < Math.min(commits.size(), maxResults); i++) {
-                var commit = commits.get(i);
-                String sha = commit.getSHA1().substring(0, 7);
-                String message = commit.getCommitShortInfo().getMessage().split("\n")[0];
-                String author = commit.getCommitShortInfo().getAuthor().getName();
-                
-                sb.append(String.format("%s - %s (por %s)\n", sha, message, author));
-            }
+			if (repo == null) {
+				return String.format("❌ Repositório '%s' não encontrado", repositoryName);
+			}
 
-            return sb.toString();
+			GHContent content = repo.getFileContent(filePath);
 
-        } catch (IOException e) {
-            log.error("Erro ao listar commits", e);
-            return "❌ Erro: " + e.getMessage();
-        }
-    }
+			if (content == null) {
+				return String.format("❌ Arquivo '%s' não encontrado", filePath);
+			}
 
-    /**
-     * Lista branches
-     */
-    @Tool("Lista todos os branches de um repositório")
-    public String listBranches(String repositoryName) {
-        try {
-            log.info("Listando branches de: {}", repositoryName);
-            
-            GitHub gh = getGitHub();
-            GHRepository repo = gh.getUser(githubUsername).getRepository(repositoryName);
-            var branches = repo.getBranches().values();
+			String decodedContent = content.getContent();
 
-            if (branches.isEmpty()) {
-                return "📭 Nenhum branch encontrado.";
-            }
+			return String.format("📄 **CONTEÚDO DE: %s**\n\n" + "```\n%s\n```", filePath, decodedContent);
 
-            StringBuilder sb = new StringBuilder();
-            sb.append(String.format("🌳 **BRANCHES DE: %s**\n\n", repositoryName));
-            
-            for (var branch : branches) {
-                String name = branch.getName();
-                sb.append(String.format("• %s\n", name));
-            }
+		} catch (IOException e) {
+			log.error("❌ Erro ao ler arquivo", e);
+			return formatErrorResponse(e);
+		}
+	}
 
-            return sb.toString();
+	/**
+	 * Cria um arquivo no repositório
+	 */
+	@Tool("Cria um novo arquivo no repositório")
+	public String createFile(String repositoryName, String filePath, String content, String message) {
+		try {
+			log.info("✏️ Criando arquivo: {} em {}", filePath, repositoryName);
 
-        } catch (IOException e) {
-            log.error("Erro ao listar branches", e);
-            return "❌ Erro: " + e.getMessage();
-        }
-    }
+			GitHub gh = getGitHub();
+			GHRepository repo = gh.getUser(githubUsername).getRepository(repositoryName);
 
-    /**
-     * Obtém estatísticas de linguagem
-     */
-    @Tool("Obtém estatísticas de linguagens de um repositório")
-    public String getRepositoryStats(String repositoryName) {
-        try {
-            log.info("Obtendo stats de: {}", repositoryName);
-            
-            GitHub gh = getGitHub();
-            GHRepository repo = gh.getUser(githubUsername).getRepository(repositoryName);
-            var languages = repo.listLanguages();
+			if (repo == null) {
+				return String.format("❌ Repositório '%s' não encontrado", repositoryName);
+			}
 
-            if (languages.isEmpty()) {
-                return "📭 Nenhuma linguagem detectada.";
-            }
+			String encodedContent = Base64.getEncoder().encodeToString(content.getBytes());
 
-            StringBuilder sb = new StringBuilder();
-            sb.append(String.format("📊 **ESTATÍSTICAS DE LINGUAGEM: %s**\n\n", repositoryName));
-            
-            long totalBytes = 0;
-            for (long bytes : languages.values()) {
-                totalBytes += bytes;
-            }
+			repo.createContent().content(encodedContent).path(filePath).message(message).commit();
 
-            for (var entry : languages.entrySet()) {
-                String lang = entry.getKey();
-                long bytes = entry.getValue();
-                double percent = (bytes * 100.0) / totalBytes;
-                
-                sb.append(String.format("%s: %.1f%%\n", lang, percent));
-            }
+			log.info("✅ Arquivo criado com sucesso");
+			return String.format("✅ **ARQUIVO CRIADO COM SUCESSO**\n\n" + "**Arquivo:** %s\n" + "**Repositório:** %s\n"
+					+ "**Mensagem:** %s", filePath, repositoryName, message);
 
-            return sb.toString();
+		} catch (IOException e) {
+			log.error("❌ Erro ao criar arquivo", e);
+			return formatErrorResponse(e);
+		}
+	}
 
-        } catch (IOException e) {
-            log.error("Erro ao obter stats", e);
-            return "❌ Erro: " + e.getMessage();
-        }
-    }
+	/**
+	 * Lista todas as issues abertas
+	 */
+	@Tool("Lista todas as issues abertas de um repositório")
+	public String listIssues(String repositoryName) {
+		try {
+			log.info("🐛 Listando issues de: {}", repositoryName);
+
+			if (repositoryName == null || repositoryName.trim().isEmpty()) {
+				return "❌ Erro: Nome do repositório não pode estar vazio";
+			}
+
+			GitHub gh = getGitHub();
+			GHRepository repo = gh.getUser(githubUsername).getRepository(repositoryName);
+
+			if (repo == null) {
+				return String.format("❌ Repositório '%s' não encontrado", repositoryName);
+			}
+
+			StringBuilder sb = new StringBuilder();
+			sb.append(String.format("🐛 **ISSUES ABERTAS DE: %s**\n\n", repositoryName));
+
+			int count = 0;
+			for (org.kohsuke.github.GHIssue issue : repo.getIssues(GHIssueState.OPEN)) {
+				sb.append(String.format("#%d - %s\n", issue.getNumber(), issue.getTitle()));
+				count++;
+				if (count >= 20)
+					break;
+			}
+
+			if (count == 0) {
+				return "✅ Nenhuma issue aberta.";
+			}
+
+			log.info("✅ {} issues listadas", count);
+			return sb.toString();
+
+		} catch (IOException e) {
+			log.error("❌ Erro ao listar issues", e);
+			return formatErrorResponse(e);
+		}
+	}
+
+	/**
+	 * Obtém estatísticas de linguagens
+	 */
+	@Tool("Obtém estatísticas de linguagens de um repositório")
+	public String getRepositoryStats(String repositoryName) {
+		try {
+			log.info("📊 Obtendo stats de: {}", repositoryName);
+
+			if (repositoryName == null || repositoryName.trim().isEmpty()) {
+				return "❌ Erro: Nome do repositório não pode estar vazio";
+			}
+
+			GitHub gh = getGitHub();
+			GHRepository repo = gh.getUser(githubUsername).getRepository(repositoryName);
+
+			if (repo == null) {
+				return String.format("❌ Repositório '%s' não encontrado", repositoryName);
+			}
+
+			var languages = repo.listLanguages();
+
+			if (languages.isEmpty()) {
+				return "📭 Nenhuma linguagem detectada.";
+			}
+
+			StringBuilder sb = new StringBuilder();
+			sb.append(String.format("📊 **ESTATÍSTICAS DE LINGUAGEM: %s**\n\n", repositoryName));
+
+			long totalBytes = 0;
+			for (long bytes : languages.values()) {
+				totalBytes += bytes;
+			}
+
+			for (var entry : languages.entrySet()) {
+				String lang = entry.getKey();
+				long bytes = entry.getValue();
+				double percent = (bytes * 100.0) / totalBytes;
+
+				sb.append(String.format("%s: %.1f%%\n", lang, percent));
+			}
+
+			log.info("✅ Stats obtidas");
+			return sb.toString();
+
+		} catch (IOException e) {
+			log.error("❌ Erro ao obter stats", e);
+			return formatErrorResponse(e);
+		}
+	}
+
+	/**
+	 * Formata mensagem de erro padronizada
+	 */
+	private String formatErrorResponse(IOException e) {
+		String errorMsg = e.getMessage() != null ? e.getMessage() : "Erro desconhecido";
+
+		if (errorMsg.contains("401") || errorMsg.contains("Unauthorized")) {
+			return "❌ Erro de autenticação:\n" + "- Token GitHub inválido ou expirado\n"
+					+ "- Verifique github.token em application.properties";
+		}
+
+		if (errorMsg.contains("404") || errorMsg.contains("Not Found")) {
+			return "❌ Recurso não encontrado:\n" + "- Repositório não existe\n"
+					+ "- Você não tem permissão para acessá-lo";
+		}
+
+		if (errorMsg.contains("403") || errorMsg.contains("Forbidden")) {
+			return "❌ Acesso negado:\n" + "- Token sem permissão suficiente\n" + "- Repositório pode ser privado";
+		}
+
+		return "❌ Erro: " + errorMsg;
+	}
 }
