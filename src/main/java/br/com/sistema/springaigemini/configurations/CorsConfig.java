@@ -19,7 +19,8 @@ public class CorsConfig {
         // Origens permitidas
         config.setAllowedOrigins(Arrays.asList(
             "http://localhost:4200",
-            "https://assistant-ai.cesaravb.com.br"
+            "https://assistant-ai.cesaravb.com.br",
+            "http://hckgoc44gccsw4s4g84swcwo.45.187.224.228.sslip.io"
         ));
         
         // Métodos HTTP permitidos
