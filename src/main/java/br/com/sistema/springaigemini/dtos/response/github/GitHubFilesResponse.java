@@ -1,110 +1,60 @@
 package br.com.sistema.springaigemini.dtos.response.github;
 
-import java.util.ArrayList;
 import java.util.List;
 
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-
 /**
- * Response com estrutura de arquivos de um repositório.
+ * Response para GET /api/v1/github-selector/repos/{name}/files
  * 
- * Usado pelo endpoint /api/v1/github-selector/repos/{name}/files
- * Retorna árvore de arquivos/pastas pronta para frontend renderizar com checkboxes.
- * 
- * ✅ CORRIGIDO: Convertido de record para classe mutável (com Lombok)
- * Agora é possível modificar children quando navegando recursivamente!
+ * Retorna a árvore hierárquica completa de arquivos de um repositório
  */
-@Data
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
 public class GitHubFilesResponse {
     
-    private String repositoryName;
-    private List<FileNode> files;
-    private Integer totalFiles;
-
-    /**
-     * Representa um arquivo ou pasta na árvore de arquivos
-     * 
-     * ✅ AGORA MUTÁVEL: Pode-se fazer node.children.addAll(...)
-     */
-    @Data
-    @NoArgsConstructor
-    @AllArgsConstructor
-    @Builder
-    public static class FileNode {
-        private String name;           // nome do arquivo/pasta
-        private String path;           // caminho relativo (ex: "src/main")
-        private String type;           // "file" ou "directory"
-        private List<FileNode> children;  // null se for file, [] se directory vazio
-        private String extension;      // ex: ".java", ".json", null se directory
-        private Long size;             // tamanho em bytes, null se directory
-
-        /**
-         * Helper: Cria um FileNode de arquivo
-         */
-        public static FileNode ofFile(String name, String path, String extension) {
-            return FileNode.builder()
-                .name(name)
-                .path(path)
-                .type("file")
-                .extension(extension)
-                .children(null)
-                .size(null)
-                .build();
-        }
-
-        /**
-         * Helper: Cria um FileNode de diretório
-         */
-        public static FileNode ofDirectory(String name, String path) {
-            return FileNode.builder()
-                .name(name)
-                .path(path)
-                .type("directory")
-                .extension(null)
-                .children(new ArrayList<>())  // ✅ Inicia com lista vazia
-                .size(null)
-                .build();
-        }
-
-        /**
-         * Adiciona um filho ao diretório
-         * ✅ Agora funciona porque é mutável!
-         */
-        public void addChild(FileNode child) {
-            if (this.children == null) {
-                this.children = new ArrayList<>();
-            }
-            this.children.add(child);
-        }
-
-        /**
-         * Adiciona múltiplos filhos
-         */
-        public void addChildren(List<FileNode> childrenList) {
-            if (this.children == null) {
-                this.children = new ArrayList<>();
-            }
-            this.children.addAll(childrenList);
-        }
-
-        /**
-         * Verifica se é um diretório
-         */
-        public boolean isDirectory() {
-            return "directory".equals(this.type);
-        }
-
-        /**
-         * Verifica se é um arquivo
-         */
-        public boolean isFile() {
-            return "file".equals(this.type);
-        }
+    private String repositoryName;  // Nome do repositório
+    private Integer totalFiles;      // Total de arquivos (não pastas)
+    private List<FileNode> files;    // Raiz da árvore de arquivos
+    
+    // ==================== CONSTRUTORES ====================
+    
+    public GitHubFilesResponse() {}
+    
+    public GitHubFilesResponse(String repositoryName, Integer totalFiles, List<FileNode> files) {
+        this.repositoryName = repositoryName;
+        this.totalFiles = totalFiles;
+        this.files = files;
+    }
+    
+    // ==================== GETTERS E SETTERS ====================
+    
+    public String getRepositoryName() {
+        return repositoryName;
+    }
+    
+    public void setRepositoryName(String repositoryName) {
+        this.repositoryName = repositoryName;
+    }
+    
+    public Integer getTotalFiles() {
+        return totalFiles;
+    }
+    
+    public void setTotalFiles(Integer totalFiles) {
+        this.totalFiles = totalFiles;
+    }
+    
+    public List<FileNode> getFiles() {
+        return files;
+    }
+    
+    public void setFiles(List<FileNode> files) {
+        this.files = files;
+    }
+    
+    @Override
+    public String toString() {
+        return "GitHubFilesResponse{" +
+                "repositoryName='" + repositoryName + '\'' +
+                ", totalFiles=" + totalFiles +
+                ", files=" + (files != null ? files.size() : 0) +
+                '}';
     }
 }
