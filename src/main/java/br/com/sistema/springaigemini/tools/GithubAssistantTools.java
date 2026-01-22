@@ -21,6 +21,7 @@ import lombok.extern.slf4j.Slf4j;
  * Tools para o assistente GitHub usando GitHub API Library (oficial).
  * 
  * ✅ FINAL: Todos os métodos retornam formato parseável para o frontend
+ * ✅ NOVO: listRepositoryFilesRecursively() para recursão completa
  */
 @Component
 @RequiredArgsConstructor
@@ -216,6 +217,101 @@ public class GithubAssistantTools implements AssistantTool {
 		} catch (Exception e) {
 			log.error("❌ Erro ao listar diretório: {}", directoryPath, e);
 			return "";
+		}
+	}
+
+	/**
+	 * ✅ NOVO: Lista arquivos COM RECURSÃO COMPLETA
+	 * 
+	 * Diferente de listRepositoryFiles() que retorna só a RAIZ,
+	 * este método busca recursivamente o conteúdo de TODAS as pastas
+	 * 
+	 * Retorna formato parseável:
+	 * type|name|path|size
+	 */
+	@Tool("Lista arquivos com recursão completa - todos os filhos de todas as pastas")
+	public String listRepositoryFilesRecursively(String repositoryName) {
+		try {
+			log.info("🌳 Listando arquivos RECURSIVAMENTE: {}", repositoryName);
+
+			if (repositoryName == null || repositoryName.trim().isEmpty()) {
+				return "";
+			}
+
+			GitHub gh = getGitHub();
+			GHRepository repo = gh.getUser(githubUsername).getRepository(repositoryName);
+
+			if (repo == null) {
+				log.error("❌ Repositório não encontrado: {}", repositoryName);
+				return "";
+			}
+
+			StringBuilder result = new StringBuilder();
+			listFilesRecursive(repo, "", result, "");
+
+			log.info("✅ Recursão concluída para: {}", repositoryName);
+			return result.toString();
+
+		} catch (IOException e) {
+			log.error("❌ Erro ao listar recursivamente", e);
+			return "";
+		}
+	}
+
+	/**
+	 * Método privado recursivo que percorre todas as pastas
+	 * 
+	 * @param repo Repositório
+	 * @param path Caminho atual (vazio para raiz)
+	 * @param result StringBuilder para acumular resultado
+	 * @param indent Indentação para debug
+	 */
+	private void listFilesRecursive(GHRepository repo, String path, StringBuilder result, String indent)
+			throws IOException {
+		try {
+			log.debug("{}📂 Listando: {}", indent, path.isEmpty() ? "RAIZ" : path);
+
+			// Obter conteúdo do diretório
+			List<GHContent> contents;
+			if (path.isEmpty()) {
+				// Raiz
+				contents = repo.getDirectoryContent("");
+			} else {
+				// Subdiretório
+				contents = repo.getDirectoryContent(path);
+			}
+
+			if (contents == null || contents.isEmpty()) {
+				return;
+			}
+
+			log.debug("{}  ↳ {} itens encontrados", indent, contents.size());
+
+			// Processar cada item
+			for (GHContent content : contents) {
+				String itemPath = content.getPath();
+				String itemName = content.getName();
+				long size = content.getSize();
+
+				if (content.isDirectory()) {
+					// ✅ É uma pasta - adicionar formato
+					result.append("directory|").append(itemName).append("|").append(itemPath).append("|")
+							.append(size).append("\n");
+					log.debug("{}  ├─ 📁 {}", indent, itemName);
+
+					// ✅ RECURSÃO: Buscar conteúdo desta pasta
+					listFilesRecursive(repo, itemPath, result, indent + "    ");
+
+				} else {
+					// É um arquivo - adicionar
+					result.append("file|").append(itemName).append("|").append(itemPath).append("|").append(size)
+							.append("\n");
+					log.debug("{}  ├─ 📄 {} ({}bytes)", indent, itemName, size);
+				}
+			}
+
+		} catch (IOException e) {
+			log.warn("⚠️ {}Erro ao listar: {}", indent, e.getMessage());
 		}
 	}
 
